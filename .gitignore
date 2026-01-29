@@ -1,0 +1,26 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Dart / Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+**/build/
+**/.metadata
+
+# Android / Gradle
+**/.gradle/
+**/local.properties
+**/key.properties
+**/*.jks
+**/*.keystore
+
+# iOS
+**/Pods/
+**/.symlinks/
+**/Runner.xcworkspace/
+

@@ -1,0 +1,13 @@
+name: pingtalk_core
+description: Pure Dart core for scoreboard state and watch sync protocol.
+version: 0.0.1
+publish_to: "none"
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+
+dev_dependencies:
+  test: ^1.25.8
+
