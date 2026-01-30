@@ -6,6 +6,8 @@ class ScoreReducer {
   ///
   /// Notes:
   /// - Scores are clamped at >= 0.
+  /// - Maximum score and deuce rules are applied.
+  /// - Set completion is handled automatically.
   /// - `version` increments only when a state change occurs.
   static MatchState apply({
     required MatchState current,
@@ -26,9 +28,15 @@ class ScoreReducer {
         break;
       case CommandType.inc:
         if (command.side == ScoreSide.home) {
-          next = current.copyWith(scoreA: current.scoreA + 1);
+          final newScore = current.scoreA + 1;
+          if (_canIncrementScore(newScore, current.scoreB, current.rules)) {
+            next = current.copyWith(scoreA: newScore);
+          }
         } else if (command.side == ScoreSide.away) {
-          next = current.copyWith(scoreB: current.scoreB + 1);
+          final newScore = current.scoreB + 1;
+          if (_canIncrementScore(newScore, current.scoreA, current.rules)) {
+            next = current.copyWith(scoreB: newScore);
+          }
         }
         break;
       case CommandType.dec:
@@ -38,10 +46,21 @@ class ScoreReducer {
           next = current.copyWith(scoreB: (current.scoreB - 1).clamp(0, 1 << 30));
         }
         break;
+      case CommandType.undo:
+        // Undo는 reducer를 거치지 않고 모바일 앱에서 직접 처리
+        // 여기서는 아무것도 하지 않음 (변경 없음)
+        return current;
     }
 
+    // 세트 종료 체크 및 처리
+    next = _checkSetCompletion(next, appliedAt, appliedBy);
+
     final changed =
-        (next.scoreA != current.scoreA) || (next.scoreB != current.scoreB);
+        (next.scoreA != current.scoreA) ||
+        (next.scoreB != current.scoreB) ||
+        (next.setScoresA.length != current.setScoresA.length) ||
+        (next.setScoresB.length != current.setScoresB.length) ||
+        (next.currentSet != current.currentSet);
     if (!changed) return current;
 
     return next.copyWith(
@@ -50,5 +69,83 @@ class ScoreReducer {
       lastUpdatedBy: appliedBy,
     );
   }
-}
 
+  /// 점수 증가가 가능한지 확인 (최대 점수 및 듀스 규칙)
+  static bool _canIncrementScore(
+    int newScore,
+    int opponentScore,
+    GameRules rules,
+  ) {
+    // 최대 점수 체크
+    if (!rules.deuceEnabled) {
+      // 듀스 규칙 없으면 최대 점수까지만
+      return newScore <= rules.maxScore;
+    }
+
+    // 듀스 규칙 적용
+    // 최대 점수에 도달했는지 확인
+    if (newScore < rules.maxScore) {
+      return true; // 아직 최대 점수 미만
+    }
+
+    // 최대 점수 이상일 때는 듀스 규칙 적용
+    // 상대방 점수와의 차이가 듀스 마진 이상이어야 승리
+    final scoreDiff = newScore - opponentScore;
+    return scoreDiff >= rules.deuceMargin;
+  }
+
+  /// 세트 종료 체크 및 처리
+  static MatchState _checkSetCompletion(
+    MatchState state,
+    DateTime appliedAt,
+    UpdatedBy appliedBy,
+  ) {
+    final rules = state.rules;
+    final scoreA = state.scoreA;
+    final scoreB = state.scoreB;
+
+    // 승리 조건 확인
+    bool aWins = false;
+    bool bWins = false;
+
+    if (!rules.deuceEnabled) {
+      // 듀스 규칙 없으면 최대 점수 도달 시 승리
+      aWins = scoreA >= rules.maxScore && scoreA > scoreB;
+      bWins = scoreB >= rules.maxScore && scoreB > scoreA;
+    } else {
+      // 듀스 규칙 적용
+      if (scoreA >= rules.maxScore || scoreB >= rules.maxScore) {
+        final diff = (scoreA - scoreB).abs();
+        if (diff >= rules.deuceMargin) {
+          aWins = scoreA > scoreB;
+          bWins = scoreB > scoreA;
+        }
+      }
+    }
+
+    if (aWins || bWins) {
+      // 세트 종료: 세트 스코어 업데이트 및 다음 세트로
+      final newSetScoresA = List<int>.from(state.setScoresA);
+      final newSetScoresB = List<int>.from(state.setScoresB);
+
+      // 현재 세트의 승패 기록
+      if (aWins) {
+        newSetScoresA.add(1);
+        newSetScoresB.add(0);
+      } else {
+        newSetScoresA.add(0);
+        newSetScoresB.add(1);
+      }
+
+      return state.copyWith(
+        scoreA: 0,
+        scoreB: 0,
+        setScoresA: newSetScoresA,
+        setScoresB: newSetScoresB,
+        currentSet: state.currentSet + 1,
+      );
+    }
+
+    return state;
+  }
+}

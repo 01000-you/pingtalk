@@ -1,6 +1,6 @@
 import 'match_state.dart';
 
-enum CommandType { inc, dec, reset }
+enum CommandType { inc, dec, reset, undo }
 
 class ScoreCommand {
   final String id;

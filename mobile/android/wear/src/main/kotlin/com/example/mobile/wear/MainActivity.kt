@@ -33,7 +33,6 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     private lateinit var btnHome: Button
     private lateinit var btnAway: Button
     private lateinit var btnInc: Button
-    private lateinit var btnDec: Button
     private lateinit var btnReset: Button
     private lateinit var btnUndo: Button
 
@@ -54,7 +53,6 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         btnHome = findViewById(R.id.btnHome)
         btnAway = findViewById(R.id.btnAway)
         btnInc = findViewById(R.id.btnInc)
-        btnDec = findViewById(R.id.btnDec)
         btnReset = findViewById(R.id.btnReset)
         btnUndo = findViewById(R.id.btnUndo)
 
@@ -68,8 +66,8 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         }
 
         btnInc.setOnClickListener { sendCommand("inc", selectedSide) }
-        btnDec.setOnClickListener { sendCommand("dec", selectedSide) }
         btnReset.setOnClickListener { sendCommand("reset", null) }
+        btnUndo.setOnClickListener { sendCommand("undo", null) }
 
         updateLayoutOrientation()
         render()
@@ -180,26 +178,16 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
             btnAway.alpha = 1.0f
         }
         
-        // +1, -1 버튼도 선택된 쪽의 accent 색상에 맞게 조정
-        // +1은 좀 더 밝게, -1은 좀 더 어둡게
+        // +1 버튼도 선택된 쪽의 accent 색상에 맞게 조정
         val incColor = if (isHomeSelected) {
             Color.rgb(100, 240, 255) // 더 밝은 청록색
         } else {
             Color.rgb(255, 220, 120) // 더 밝은 노란색
         }
-        val decColor = if (isHomeSelected) {
-            Color.rgb(30, 180, 200) // 더 어두운 청록색
-        } else {
-            Color.rgb(220, 160, 40) // 더 어두운 노란색
-        }
         
         btnInc.setBackgroundColor(incColor)
         btnInc.setTextColor(Color.BLACK)
         btnInc.alpha = 1.0f
-        
-        btnDec.setBackgroundColor(decColor)
-        btnDec.setTextColor(Color.BLACK)
-        btnDec.alpha = 1.0f
     }
 
     private fun sendCommand(type: String, side: String?) {
