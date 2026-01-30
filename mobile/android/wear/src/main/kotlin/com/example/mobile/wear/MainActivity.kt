@@ -3,10 +3,15 @@ package com.example.mobile.wear
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
+import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
 import org.json.JSONObject
@@ -30,9 +35,17 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     private lateinit var btnInc: Button
     private lateinit var btnDec: Button
     private lateinit var btnReset: Button
+    private lateinit var btnUndo: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 시스템 UI를 완전히 숨기고 상단 여백 제거
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        
         setContentView(R.layout.activity_main)
 
         tvStatus = findViewById(R.id.tvStatus)
@@ -43,6 +56,7 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         btnInc = findViewById(R.id.btnInc)
         btnDec = findViewById(R.id.btnDec)
         btnReset = findViewById(R.id.btnReset)
+        btnUndo = findViewById(R.id.btnUndo)
 
         btnHome.setOnClickListener {
             selectedSide = "HOME"
