@@ -7,8 +7,10 @@ import 'package:pingtalk_core/pingtalk_core.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 모바일은 기본 가로모드(landscape)로 고정
-  await SystemChrome.setPreferredOrientations(const [
+  // 가로/세로 모드 모두 허용
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
@@ -176,7 +178,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     return Scaffold(
       backgroundColor: baseBg,
       body: SafeArea(
-        bottom: false,
+        bottom: true,
         child: Column(
           children: [
             Padding(
@@ -222,30 +224,66 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
               ),
             ),
             Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _ScoreHalf(
-                      background: homeBg,
-                      accent: homeAccent,
-                      label: 'HOME',
-                      score: _state.scoreA,
-                      onInc: () => _inc(ScoreSide.home),
-                      onDec: () => _dec(ScoreSide.home),
-                    ),
-                  ),
-                  Container(width: 1, color: scheme.onSurface.withValues(alpha: 0.12)),
-                  Expanded(
-                    child: _ScoreHalf(
-                      background: awayBg,
-                      accent: awayAccent,
-                      label: 'AWAY',
-                      score: _state.scoreB,
-                      onInc: () => _inc(ScoreSide.away),
-                      onDec: () => _dec(ScoreSide.away),
-                    ),
-                  ),
-                ],
+              child: OrientationBuilder(
+                builder: (context, orientation) {
+                  final isPortrait = orientation == Orientation.portrait;
+                  
+                  if (isPortrait) {
+                    // 세로 모드: 상하 배치
+                    return Column(
+                      children: [
+                        Expanded(
+                          child: _ScoreHalf(
+                            background: homeBg,
+                            accent: homeAccent,
+                            label: 'HOME',
+                            score: _state.scoreA,
+                            onInc: () => _inc(ScoreSide.home),
+                            onDec: () => _dec(ScoreSide.home),
+                          ),
+                        ),
+                        Container(height: 1, color: scheme.onSurface.withValues(alpha: 0.12)),
+                        Expanded(
+                          child: _ScoreHalf(
+                            background: awayBg,
+                            accent: awayAccent,
+                            label: 'AWAY',
+                            score: _state.scoreB,
+                            onInc: () => _inc(ScoreSide.away),
+                            onDec: () => _dec(ScoreSide.away),
+                          ),
+                        ),
+                      ],
+                    );
+                  } else {
+                    // 가로 모드: 좌우 배치
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _ScoreHalf(
+                            background: homeBg,
+                            accent: homeAccent,
+                            label: 'HOME',
+                            score: _state.scoreA,
+                            onInc: () => _inc(ScoreSide.home),
+                            onDec: () => _dec(ScoreSide.home),
+                          ),
+                        ),
+                        Container(width: 1, color: scheme.onSurface.withValues(alpha: 0.12)),
+                        Expanded(
+                          child: _ScoreHalf(
+                            background: awayBg,
+                            accent: awayAccent,
+                            label: 'AWAY',
+                            score: _state.scoreB,
+                            onInc: () => _inc(ScoreSide.away),
+                            onDec: () => _dec(ScoreSide.away),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                },
               ),
             ),
           ],
@@ -301,9 +339,9 @@ class _ScoreHalf extends StatelessWidget {
                         splashColor: accent.withValues(alpha: 0.20),
                         semanticLabel: '$label +1',
                         child: Align(
-                          alignment: Alignment.topCenter,
+                          alignment: Alignment.topRight,
                           child: Padding(
-                            padding: const EdgeInsets.only(top: 14),
+                            padding: const EdgeInsets.only(top: 14, right: 14),
                             child: Icon(Icons.add, color: accent, size: 44),
                           ),
                         ),
@@ -321,9 +359,9 @@ class _ScoreHalf extends StatelessWidget {
                         splashColor: accent.withValues(alpha: 0.14),
                         semanticLabel: '$label -1',
                         child: Align(
-                          alignment: Alignment.bottomCenter,
+                          alignment: Alignment.bottomRight,
                           child: Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
+                            padding: const EdgeInsets.only(bottom: 14, right: 14),
                             child: Icon(Icons.remove, color: accent, size: 44),
                           ),
                         ),

@@ -1,7 +1,10 @@
 package com.example.mobile.wear
 
+import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Bundle
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.wearable.MessageClient
@@ -21,6 +24,7 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
 
     private lateinit var tvStatus: TextView
     private lateinit var tvScore: TextView
+    private lateinit var layoutHomeAway: LinearLayout
     private lateinit var btnHome: Button
     private lateinit var btnAway: Button
     private lateinit var btnInc: Button
@@ -33,6 +37,7 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
 
         tvStatus = findViewById(R.id.tvStatus)
         tvScore = findViewById(R.id.tvScore)
+        layoutHomeAway = findViewById(R.id.layoutHomeAway)
         btnHome = findViewById(R.id.btnHome)
         btnAway = findViewById(R.id.btnAway)
         btnInc = findViewById(R.id.btnInc)
@@ -52,16 +57,56 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         btnDec.setOnClickListener { sendCommand("dec", selectedSide) }
         btnReset.setOnClickListener { sendCommand("reset", null) }
 
+        updateLayoutOrientation()
         render()
     }
 
     override fun onResume() {
         super.onResume()
+        updateLayoutOrientation()
         Wearable.getMessageClient(this).addListener(this)
         // 워치 앱 실행 시 폰에 ping 보내기(폰 UI에 "연결됨" 표시)
         sendToAllNodes(pathPing, ByteArray(0)) { ok ->
             runOnUiThread { tvStatus.text = if (ok) "폰: 연결됨" else "폰: 미연결" }
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateLayoutOrientation()
+    }
+
+    private fun updateLayoutOrientation() {
+        val displayMetrics = resources.displayMetrics
+        val width = displayMetrics.widthPixels
+        val height = displayMetrics.heightPixels
+        
+        // 세로가 더 길면 vertical, 가로가 더 길면 horizontal
+        val isPortrait = height > width
+        
+        layoutHomeAway.orientation = if (isPortrait) {
+            LinearLayout.VERTICAL
+        } else {
+            LinearLayout.HORIZONTAL
+        }
+        
+        // 세로 모드일 때는 margin을 상하로, 가로 모드일 때는 좌우로
+        val marginPx = (4 * resources.displayMetrics.density).toInt() // 4dp
+        val homeParams = btnHome.layoutParams as LinearLayout.LayoutParams
+        val awayParams = btnAway.layoutParams as LinearLayout.LayoutParams
+        
+        if (isPortrait) {
+            // 세로 모드: HOME 위, AWAY 아래
+            homeParams.setMargins(0, 0, 0, marginPx)
+            awayParams.setMargins(0, marginPx, 0, 0)
+        } else {
+            // 가로 모드: HOME 왼쪽, AWAY 오른쪽
+            homeParams.setMargins(0, 0, marginPx, 0)
+            awayParams.setMargins(marginPx, 0, 0, 0)
+        }
+        
+        btnHome.layoutParams = homeParams
+        btnAway.layoutParams = awayParams
     }
 
     override fun onPause() {
@@ -87,8 +132,60 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
 
     private fun render() {
         tvScore.text = "$scoreHome : $scoreAway"
-        btnHome.isEnabled = selectedSide != "HOME"
-        btnAway.isEnabled = selectedSide != "AWAY"
+        
+        // 버튼은 항상 활성화 상태로 유지 (토글 가능하게)
+        val isHomeSelected = selectedSide == "HOME"
+        btnHome.isEnabled = true
+        btnAway.isEnabled = true
+        
+        // 모바일 앱과 동일한 색상 사용
+        // homeAccent = 0xFF3DDCFF (청록-하늘색), awayAccent = 0xFFFFC14D (노란색)
+        val homeAccentColor = Color.rgb(61, 220, 255) // 0xFF3DDCFF
+        val awayAccentColor = Color.rgb(255, 193, 77) // 0xFFFFC14D
+        val unselectedBgColor = Color.argb(80, 150, 150, 150) // 약간 밝은 회색 배경
+        val unselectedTextColor = Color.argb(180, 255, 255, 255) // 약간 투명한 흰색 텍스트
+        
+        // 선택된 쪽과 비선택된 쪽을 배경색과 텍스트 색상으로 구분
+        if (isHomeSelected) {
+            // HOME 선택됨: HOME은 accent 색상 배경, AWAY는 어두운 배경
+            btnHome.setBackgroundColor(homeAccentColor)
+            btnHome.setTextColor(Color.BLACK)
+            btnHome.alpha = 1.0f
+            
+            btnAway.setBackgroundColor(unselectedBgColor)
+            btnAway.setTextColor(unselectedTextColor)
+            btnAway.alpha = 1.0f
+        } else {
+            // AWAY 선택됨: AWAY는 accent 색상 배경, HOME은 어두운 배경
+            btnHome.setBackgroundColor(unselectedBgColor)
+            btnHome.setTextColor(unselectedTextColor)
+            btnHome.alpha = 1.0f
+            
+            btnAway.setBackgroundColor(awayAccentColor)
+            btnAway.setTextColor(Color.BLACK)
+            btnAway.alpha = 1.0f
+        }
+        
+        // +1, -1 버튼도 선택된 쪽의 accent 색상에 맞게 조정
+        // +1은 좀 더 밝게, -1은 좀 더 어둡게
+        val incColor = if (isHomeSelected) {
+            Color.rgb(100, 240, 255) // 더 밝은 청록색
+        } else {
+            Color.rgb(255, 220, 120) // 더 밝은 노란색
+        }
+        val decColor = if (isHomeSelected) {
+            Color.rgb(30, 180, 200) // 더 어두운 청록색
+        } else {
+            Color.rgb(220, 160, 40) // 더 어두운 노란색
+        }
+        
+        btnInc.setBackgroundColor(incColor)
+        btnInc.setTextColor(Color.BLACK)
+        btnInc.alpha = 1.0f
+        
+        btnDec.setBackgroundColor(decColor)
+        btnDec.setTextColor(Color.BLACK)
+        btnDec.alpha = 1.0f
     }
 
     private fun sendCommand(type: String, side: String?) {
