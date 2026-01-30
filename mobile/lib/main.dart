@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pingtalk_core/pingtalk_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,8 +35,35 @@ class PingTalkApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const ScoreboardPage(),
+      home: const SplashWrapper(),
     );
+  }
+}
+
+class SplashWrapper extends StatefulWidget {
+  const SplashWrapper({super.key});
+
+  @override
+  State<SplashWrapper> createState() => _SplashWrapperState();
+}
+
+class _SplashWrapperState extends State<SplashWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // 스플래시 화면을 2초간 표시한 후 메인 화면으로 전환
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const ScoreboardPage()),
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const SplashScreen();
   }
 }
 
@@ -299,17 +327,32 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
 
   void _reset() {
     if (_state == null) return;
-    _applyCommand(
-      ScoreCommand(
-        id: _newCommandId(),
-        matchId: _state!.matchId,
-        type: CommandType.reset,
-        issuedAt: DateTime.now().toUtc(),
-        issuedBy: UpdatedBy.phone,
+    
+    // 확인 다이얼로그 표시
+    showDialog(
+      context: context,
+      builder: (context) => _ResetConfirmDialog(
+        onConfirm: () {
+          // 히스토리 초기화
+          _stateHistory.clear();
+          
+          // 점수 초기화
+          _applyCommand(
+            ScoreCommand(
+              id: _newCommandId(),
+              matchId: _state!.matchId,
+              type: CommandType.reset,
+              issuedAt: DateTime.now().toUtc(),
+              issuedBy: UpdatedBy.phone,
+            ),
+            appliedBy: UpdatedBy.phone,
+          );
+          unawaited(_pushStateToWatch());
+          
+          Navigator.of(context).pop();
+        },
       ),
-      appliedBy: UpdatedBy.phone,
     );
-    unawaited(_pushStateToWatch());
   }
 
   String _getWatchStatusText() {
@@ -483,26 +526,25 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                       }
                     },
                   ),
-                  // 세트 스코어 표시 (정중앙 플로팅) - 게임 점수와 유사한 디자인
-                  if (_state!.setScoresA.isNotEmpty || _state!.setScoresB.isNotEmpty)
-                    Positioned.fill(
-                      child: Center(
-                        child: OrientationBuilder(
-                          builder: (context, orientation) {
-                            return _SetScoreDisplay(
-                              homeScore: _state!.setScoresA.fold<int>(0, (sum, score) => sum + score),
-                              awayScore: _state!.setScoresB.fold<int>(0, (sum, score) => sum + score),
-                              homeBg: homeBg,
-                              awayBg: awayBg,
-                              homeAccent: homeAccent,
-                              awayAccent: awayAccent,
-                              scheme: scheme,
-                              isPortrait: orientation == Orientation.portrait,
-                            );
-                          },
-                        ),
+                  // 세트 스코어 표시 (정중앙 플로팅) - 게임 점수와 유사한 디자인 (항상 표시)
+                  Positioned.fill(
+                    child: Center(
+                      child: OrientationBuilder(
+                        builder: (context, orientation) {
+                          return _SetScoreDisplay(
+                            homeScore: _state!.setScoresA.fold<int>(0, (sum, score) => sum + score),
+                            awayScore: _state!.setScoresB.fold<int>(0, (sum, score) => sum + score),
+                            homeBg: homeBg,
+                            awayBg: awayBg,
+                            homeAccent: homeAccent,
+                            awayAccent: awayAccent,
+                            scheme: scheme,
+                            isPortrait: orientation == Orientation.portrait,
+                          );
+                        },
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -784,6 +826,121 @@ class _SetScoreDisplay extends StatelessWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _ResetConfirmDialog extends StatelessWidget {
+  final VoidCallback onConfirm;
+
+  const _ResetConfirmDialog({required this.onConfirm});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const baseBg = Color(0xFF0B1220);
+    
+    return Dialog(
+      backgroundColor: baseBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: scheme.onSurface.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 아이콘
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: scheme.errorContainer.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.restart_alt,
+                color: scheme.error,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 20),
+            // 제목
+            Text(
+              '모든 점수 초기화',
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 메시지
+            Text(
+              '모든 점수와 세트 스코어, Undo 히스토리가 삭제됩니다.\n정말 초기화하시겠습니까?',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: scheme.onSurface.withValues(alpha: 0.8),
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            // 버튼들
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: scheme.onSurface.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      '취소',
+                      style: TextStyle(
+                        color: scheme.onSurface.withValues(alpha: 0.9),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: scheme.error,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      '초기화',
+                      style: TextStyle(
+                        color: scheme.onError,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

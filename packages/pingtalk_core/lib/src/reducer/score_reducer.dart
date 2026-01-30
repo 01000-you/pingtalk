@@ -24,7 +24,13 @@ class ScoreReducer {
 
     switch (command.type) {
       case CommandType.reset:
-        next = current.copyWith(scoreA: 0, scoreB: 0);
+        next = current.copyWith(
+          scoreA: 0,
+          scoreB: 0,
+          setScoresA: const [],
+          setScoresB: const [],
+          currentSet: 0,
+        );
         break;
       case CommandType.inc:
         if (command.side == ScoreSide.home) {

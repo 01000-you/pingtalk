@@ -188,6 +188,16 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         btnInc.setBackgroundColor(incColor)
         btnInc.setTextColor(Color.BLACK)
         btnInc.alpha = 1.0f
+        
+        // RESET 버튼: 빨간색 계열 (위험한 작업)
+        btnReset.setBackgroundColor(Color.rgb(220, 80, 80)) // 빨간색
+        btnReset.setTextColor(Color.WHITE)
+        btnReset.alpha = 1.0f
+        
+        // UNDO 버튼: 파란색 계열 (되돌리기 작업)
+        btnUndo.setBackgroundColor(Color.rgb(100, 150, 255)) // 파란색
+        btnUndo.setTextColor(Color.WHITE)
+        btnUndo.alpha = 1.0f
     }
 
     private fun sendCommand(type: String, side: String?) {
