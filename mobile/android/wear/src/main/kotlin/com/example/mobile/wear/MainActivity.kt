@@ -8,6 +8,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -66,7 +67,7 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         }
 
         btnInc.setOnClickListener { sendCommand("inc", selectedSide) }
-        btnReset.setOnClickListener { sendCommand("reset", null) }
+        btnReset.setOnClickListener { showResetConfirmDialog() }
         btnUndo.setOnClickListener { sendCommand("undo", null) }
 
         updateLayoutOrientation()
@@ -198,6 +199,51 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         btnUndo.setBackgroundColor(Color.rgb(100, 150, 255)) // 파란색
         btnUndo.setTextColor(Color.WHITE)
         btnUndo.alpha = 1.0f
+    }
+
+    private fun showResetConfirmDialog() {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("초기화")
+            .setMessage("모든 점수와 세트 스코어,\nUndo 히스토리가 삭제됩니다.\n정말 초기화하시겠습니까?")
+            .setPositiveButton("초기화") { _, _ ->
+                sendCommand("reset", null)
+            }
+            .setNegativeButton("취소", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            // 다이얼로그 배경을 어두운 색으로
+            val bgColor = Color.rgb(11, 18, 32) // 0xFF0B1220
+            dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bgColor))
+            
+            // 제목 텍스트 색상, 중앙정렬, 볼드
+            val titleView = dialog.findViewById<TextView>(android.R.id.title)
+            if (titleView != null) {
+                titleView.setTextColor(Color.WHITE)
+                titleView.gravity = android.view.Gravity.CENTER
+                titleView.setTypeface(null, android.graphics.Typeface.BOLD)
+                titleView.textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+            }
+            
+            // 메시지 텍스트 색상 및 중앙정렬
+            val messageView = dialog.findViewById<TextView>(android.R.id.message)
+            if (messageView != null) {
+                messageView.setTextColor(Color.argb(230, 255, 255, 255))
+                messageView.gravity = android.view.Gravity.CENTER
+                messageView.textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+            }
+            
+            // 버튼 색상 설정
+            val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            positiveButton?.setBackgroundColor(Color.rgb(220, 80, 80)) // 빨간색
+            positiveButton?.setTextColor(Color.WHITE)
+            
+            val negativeButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+            negativeButton?.setBackgroundColor(Color.argb(80, 150, 150, 150)) // 회색
+            negativeButton?.setTextColor(Color.argb(180, 255, 255, 255))
+        }
+        
+        dialog.show()
     }
 
     private fun sendCommand(type: String, side: String?) {
