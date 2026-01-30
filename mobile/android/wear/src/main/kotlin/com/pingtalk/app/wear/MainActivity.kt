@@ -2,6 +2,7 @@ package com.pingtalk.app.wear
 
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
@@ -115,15 +116,21 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
             }
             pathLanguage -> {
                 val payload = event.data?.toString(Charsets.UTF_8) ?: return
+                Log.d("PingTalk", "Received language message: $payload")
                 val json = JSONObject(payload)
                 val newLocale = json.optString("locale", "ko")
+                Log.d("PingTalk", "New locale: $newLocale, current locale: $currentLocale")
                 if (newLocale != currentLocale) {
                     currentLocale = newLocale
+                    Log.d("PingTalk", "Updating locale to: $currentLocale")
                     runOnUiThread {
                         // 모든 UI 텍스트 업데이트 (현재 상태 유지)
                         tvStatus.text = getStatusText(currentStatus)
                         render()
+                        Log.d("PingTalk", "UI updated with locale: $currentLocale")
                     }
+                } else {
+                    Log.d("PingTalk", "Locale unchanged, skipping update")
                 }
             }
         }

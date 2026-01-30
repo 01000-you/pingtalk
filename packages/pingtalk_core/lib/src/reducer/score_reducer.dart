@@ -90,15 +90,16 @@ class ScoreReducer {
     }
 
     // 듀스 규칙 적용
-    // 최대 점수에 도달했는지 확인
+    // 최대 점수 미만이면 자유롭게 증가 가능
     if (newScore < rules.maxScore) {
-      return true; // 아직 최대 점수 미만
+      return true;
     }
 
-    // 최대 점수 이상일 때는 듀스 규칙 적용
-    // 상대방 점수와의 차이가 듀스 마진 이상이어야 승리
-    final scoreDiff = newScore - opponentScore;
-    return scoreDiff >= rules.deuceMargin;
+    // 최대 점수 이상일 때는 듀스 상태
+    // 듀스 상태에서는 점수는 계속 증가 가능하지만,
+    // 승리하려면 상대방보다 듀스 마진(2점) 이상 앞서야 함
+    // 점수 증가 자체는 제한하지 않음 (승리 조건은 _checkSetCompletion에서 체크)
+    return true;
   }
 
   /// 세트 종료 체크 및 처리

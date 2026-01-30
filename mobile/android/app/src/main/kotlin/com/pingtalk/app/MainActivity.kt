@@ -1,6 +1,7 @@
 package com.pingtalk.app
 
 import android.os.Bundle
+import android.util.Log
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Wearable
 import io.flutter.embedding.android.FlutterActivity
@@ -43,7 +44,9 @@ class MainActivity : FlutterActivity(), MessageClient.OnMessageReceivedListener 
                     @Suppress("UNCHECKED_CAST")
                     val map = call.arguments as? Map<String, Any?>
                     val locale = map?.get("locale") as? String
+                    Log.d("PingTalk", "setLanguage called with map: $map, locale: $locale")
                     if (locale == null) {
+                        Log.e("PingTalk", "setLanguage: locale is null")
                         result.error("bad_args", "setLanguage expects Map with 'locale' key", null)
                         return@setMethodCallHandler
                     }
@@ -51,7 +54,10 @@ class MainActivity : FlutterActivity(), MessageClient.OnMessageReceivedListener 
                     val json = JSONObject().apply {
                         put("locale", locale)
                     }
-                    sendToAllNodes("/pingtalk/language", json.toString().toByteArray(Charsets.UTF_8)) { ok ->
+                    val jsonString = json.toString()
+                    Log.d("PingTalk", "Sending language to watch: $jsonString")
+                    sendToAllNodes("/pingtalk/language", jsonString.toByteArray(Charsets.UTF_8)) { ok ->
+                        Log.d("PingTalk", "Language send result: $ok")
                         if (ok) result.success(true) else result.error("send_failed", "failed to send language", null)
                     }
                 }
