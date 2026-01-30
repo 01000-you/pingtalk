@@ -1,80 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="12dp">
-
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="폰: 연결 대기"
-        android:textSize="12sp" />
-
-    <TextView
-        android:id="@+id/tvScore"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingTop="6dp"
-        android:paddingBottom="10dp"
-        android:text="0 : 0"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnHome"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="HOME" />
-
-        <Button
-            android:id="@+id/btnAway"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="AWAY" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
         android:orientation="vertical"
-        android:paddingTop="8dp">
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="폰: 연결 대기"
+            android:textSize="11sp"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/tvScore"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingTop="4dp"
+            android:paddingBottom="6dp"
+            android:text="0 : 0"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingBottom="6dp">
+
+            <Button
+                android:id="@+id/btnHome"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="HOME"
+                android:textSize="12sp"
+                android:minHeight="36dp" />
+
+            <Button
+                android:id="@+id/btnAway"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="AWAY"
+                android:textSize="12sp"
+                android:minHeight="36dp" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/btnInc"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="+1"
-            android:textSize="20sp" />
+            android:textSize="18sp"
+            android:minHeight="40dp"
+            android:layout_marginBottom="4dp" />
 
         <Button
             android:id="@+id/btnDec"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
             android:text="-1"
-            android:textSize="20sp" />
+            android:textSize="18sp"
+            android:minHeight="40dp"
+            android:layout_marginBottom="6dp" />
 
         <Button
             android:id="@+id/btnReset"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="RESET"
-            android:textSize="14sp" />
+            android:text="초기화 (RESET)"
+            android:textSize="14sp"
+            android:minHeight="40dp"
+            android:layout_marginTop="4dp" />
+
     </LinearLayout>
 
-</LinearLayout>
+</ScrollView>
 
