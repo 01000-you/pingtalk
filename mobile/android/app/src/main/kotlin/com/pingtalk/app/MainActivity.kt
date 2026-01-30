@@ -1,4 +1,4 @@
-package com.example.mobile
+package com.pingtalk.app
 
 import android.os.Bundle
 import com.google.android.gms.wearable.MessageClient
@@ -35,6 +35,24 @@ class MainActivity : FlutterActivity(), MessageClient.OnMessageReceivedListener 
                     val json = JSONObject(map).toString()
                     sendToAllNodes(pathState, json.toByteArray(Charsets.UTF_8)) { ok ->
                         if (ok) result.success(true) else result.error("send_failed", "failed to send state", null)
+                    }
+                }
+                
+                // Flutter -> Native: 언어 변경을 워치로 전달
+                "setLanguage" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val map = call.arguments as? Map<String, Any?>
+                    val locale = map?.get("locale") as? String
+                    if (locale == null) {
+                        result.error("bad_args", "setLanguage expects Map with 'locale' key", null)
+                        return@setMethodCallHandler
+                    }
+                    
+                    val json = JSONObject().apply {
+                        put("locale", locale)
+                    }
+                    sendToAllNodes("/pingtalk/language", json.toString().toByteArray(Charsets.UTF_8)) { ok ->
+                        if (ok) result.success(true) else result.error("send_failed", "failed to send language", null)
                     }
                 }
 

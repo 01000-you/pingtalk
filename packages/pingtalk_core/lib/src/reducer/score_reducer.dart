@@ -29,6 +29,7 @@ class ScoreReducer {
           scoreB: 0,
           setScoresA: const [],
           setScoresB: const [],
+          setHistory: const [],
           currentSet: 0,
         );
         break;
@@ -133,6 +134,7 @@ class ScoreReducer {
       // 세트 종료: 세트 스코어 업데이트 및 다음 세트로
       final newSetScoresA = List<int>.from(state.setScoresA);
       final newSetScoresB = List<int>.from(state.setScoresB);
+      final newSetHistory = List<SetScore>.from(state.setHistory);
 
       // 현재 세트의 승패 기록
       if (aWins) {
@@ -143,11 +145,20 @@ class ScoreReducer {
         newSetScoresB.add(1);
       }
 
+      // 현재 세트의 게임 스코어 히스토리 기록
+      newSetHistory.add(SetScore(
+        setNumber: state.currentSet + 1,
+        scoreA: scoreA,
+        scoreB: scoreB,
+        completedAt: appliedAt,
+      ));
+
       return state.copyWith(
         scoreA: 0,
         scoreB: 0,
         setScoresA: newSetScoresA,
         setScoresB: newSetScoresB,
+        setHistory: newSetHistory,
         currentSet: state.currentSet + 1,
       );
     }

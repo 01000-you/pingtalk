@@ -18,6 +18,7 @@ Thumbs.db
 **/key.properties
 **/*.jks
 **/*.keystore
+**/keystore_password_backup.txt
 
 # iOS
 **/Pods/

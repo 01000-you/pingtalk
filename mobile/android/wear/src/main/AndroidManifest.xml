@@ -13,8 +13,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.PingTalkWear"
-            android:configChanges="orientation|screenSize|screenLayout">
+            android:theme="@style/Theme.PingTalkWear">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

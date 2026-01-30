@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pingtalk_core/pingtalk_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'l10n/app_localizations.dart';
 import 'splash_screen.dart';
 
 Future<void> main() async {
@@ -21,13 +24,49 @@ Future<void> main() async {
   runApp(const PingTalkApp());
 }
 
-class PingTalkApp extends StatelessWidget {
+class PingTalkApp extends StatefulWidget {
   const PingTalkApp({super.key});
+
+  @override
+  State<PingTalkApp> createState() => _PingTalkAppState();
+}
+
+class _PingTalkAppState extends State<PingTalkApp> {
+  Locale _locale = _getSystemLocale();
+
+  void _setLocale(Locale locale) {
+    setState(() {
+      _locale = locale;
+    });
+  }
+  
+  // 시스템 로케일을 감지하여 지원하는 언어로 변환
+  static Locale _getSystemLocale() {
+    final systemLocale = ui.PlatformDispatcher.instance.locale;
+    final systemLanguageCode = systemLocale.languageCode;
+    
+    // 지원하는 언어 목록
+    const supportedLanguages = ['ko', 'en', 'zh', 'ja'];
+    
+    // 시스템 언어가 지원 목록에 있으면 사용, 없으면 한국어 기본값
+    if (supportedLanguages.contains(systemLanguageCode)) {
+      return Locale(systemLanguageCode);
+    }
+    
+    // 중국어 변형 처리 (zh-Hans, zh-Hant 등)
+    if (systemLanguageCode.startsWith('zh')) {
+      return const Locale('zh');
+    }
+    
+    // 기본값: 한국어
+    return const Locale('ko');
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'PingTalk',
+      locale: _locale,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -35,13 +74,27 @@ class PingTalkApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const SplashWrapper(),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ko', ''),
+        Locale('en', ''),
+        Locale('zh', ''),
+        Locale('ja', ''),
+      ],
+      home: SplashWrapper(onLocaleChanged: _setLocale),
     );
   }
 }
 
 class SplashWrapper extends StatefulWidget {
-  const SplashWrapper({super.key});
+  final ValueChanged<Locale> onLocaleChanged;
+  
+  const SplashWrapper({super.key, required this.onLocaleChanged});
 
   @override
   State<SplashWrapper> createState() => _SplashWrapperState();
@@ -55,7 +108,9 @@ class _SplashWrapperState extends State<SplashWrapper> {
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const ScoreboardPage()),
+          MaterialPageRoute(
+            builder: (context) => ScoreboardPage(onLocaleChanged: widget.onLocaleChanged),
+          ),
         );
       }
     });
@@ -77,7 +132,9 @@ enum WatchConnectionStatus {
 }
 
 class ScoreboardPage extends StatefulWidget {
-  const ScoreboardPage({super.key});
+  final ValueChanged<Locale> onLocaleChanged;
+  
+  const ScoreboardPage({super.key, required this.onLocaleChanged});
 
   @override
   State<ScoreboardPage> createState() => _ScoreboardPageState();
@@ -86,6 +143,8 @@ class ScoreboardPage extends StatefulWidget {
 class _ScoreboardPageState extends State<ScoreboardPage> {
   static const MethodChannel _watchChannel = MethodChannel('pingtalk/watch');
   static const String _prefsKeyState = 'match_state';
+  static const String _prefsKeySwipeGuideShown = 'swipe_guide_shown';
+  static const String _prefsKeyLocale = 'app_locale';
   // static const String _prefsKeyHistory = 'match_history'; // 향후 경기 기록 기능용
   static const int _maxHistorySize = 100;
 
@@ -101,10 +160,15 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
   
   SharedPreferences? _prefs;
   bool _isInitialized = false;
+  bool _showSwipeGuide = false;
+  PageController? _pageController;
+  Locale _currentLocale = const Locale('ko');
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
+    _pageController?.addListener(_onPageChanged);
     // 초기 상태 설정
     _state = MatchState(
       matchId: 'local',
@@ -120,18 +184,105 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     _initialize();
   }
 
+  void _onPageChanged() {
+    if (_pageController?.page != null && _pageController!.page! > 0.5 && _showSwipeGuide) {
+      // 히스토리 페이지로 스와이프했으면 가이드 숨기기
+      _hideSwipeGuide();
+    }
+  }
+
+  Future<void> _hideSwipeGuide() async {
+    if (!_showSwipeGuide) return;
+    setState(() {
+      _showSwipeGuide = false;
+    });
+    if (_prefs != null) {
+      await _prefs!.setBool(_prefsKeySwipeGuideShown, true);
+    }
+  }
+
   Future<void> _initialize() async {
     try {
       _prefs = await SharedPreferences.getInstance();
       await _loadState();
+      await _loadLocale();
     } catch (e) {
       // SharedPreferences 초기화 실패 시 기본값 사용
       // (플러그인이 아직 준비되지 않았을 수 있음)
     }
     _watchChannel.setMethodCallHandler(_onWatchMethodCall);
+    
+    // 스와이프 가이드 표시 여부 확인 (초기화 완료 후)
+    final guideShown = _prefs?.getBool(_prefsKeySwipeGuideShown) ?? false;
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+        _showSwipeGuide = !guideShown;
+      });
+    }
+  }
+
+  Future<void> _loadLocale() async {
+    if (_prefs == null) return;
+    
+    // SharedPreferences에 저장된 언어가 있으면 사용
+    final savedLocaleCode = _prefs!.getString(_prefsKeyLocale);
+    if (savedLocaleCode != null) {
+      setState(() {
+        _currentLocale = Locale(savedLocaleCode);
+      });
+      widget.onLocaleChanged(_currentLocale);
+      return;
+    }
+    
+    // 저장된 언어가 없으면 시스템 로케일 사용
+    final systemLocale = ui.PlatformDispatcher.instance.locale;
+    final systemLanguageCode = systemLocale.languageCode;
+    
+    // 지원하는 언어 목록
+    const supportedLanguages = ['ko', 'en', 'zh', 'ja'];
+    
+    String localeCode;
+    if (supportedLanguages.contains(systemLanguageCode)) {
+      localeCode = systemLanguageCode;
+    } else if (systemLanguageCode.startsWith('zh')) {
+      // 중국어 변형 처리
+      localeCode = 'zh';
+    } else {
+      // 지원하지 않는 언어면 한국어 기본값
+      localeCode = 'ko';
+    }
+    
+    // 시스템 로케일을 SharedPreferences에 저장 (다음 실행 시에도 유지)
+    await _prefs!.setString(_prefsKeyLocale, localeCode);
+    
     setState(() {
-      _isInitialized = true;
+      _currentLocale = Locale(localeCode);
     });
+    widget.onLocaleChanged(_currentLocale);
+    
+    // 워치에도 초기 언어 설정 전달
+    await _pushLanguageToWatch(localeCode);
+  }
+
+  Future<void> _saveLocale(String localeCode) async {
+    if (_prefs == null) return;
+    await _prefs!.setString(_prefsKeyLocale, localeCode);
+    final newLocale = Locale(localeCode);
+    setState(() {
+      _currentLocale = newLocale;
+    });
+    widget.onLocaleChanged(newLocale);
+    // 워치에 언어 변경 알림
+    await _pushLanguageToWatch(localeCode);
+  }
+
+  Future<void> _pushLanguageToWatch(String localeCode) async {
+    try {
+      await _watchChannel.invokeMethod('setLanguage', {'locale': localeCode});
+    } catch (e) {
+      // 워치 연결 실패 시 무시
+    }
   }
 
   Future<void> _loadState() async {
@@ -169,6 +320,8 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
 
   @override
   void dispose() {
+    _pageController?.removeListener(_onPageChanged);
+    _pageController?.dispose();
     _methodCallSub?.cancel();
     super.dispose();
   }
@@ -212,8 +365,9 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
         setState(() {
           _watchStatus = WatchConnectionStatus.connected;
         });
-        // 연결 시 최신 상태를 워치로 전송
+        // 연결 시 최신 상태와 언어 설정을 워치로 전송
         await _pushStateToWatch();
+        await _pushLanguageToWatch(_currentLocale.languageCode);
         return;
       default:
         return;
@@ -295,6 +449,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       context: context,
       builder: (context) => _SettingsDialog(
         rules: _state!.rules,
+        currentLocale: _currentLocale.languageCode,
         onSave: (rules) {
           setState(() {
             _state = _state!.copyWith(
@@ -303,6 +458,9 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
           });
           unawaited(_saveState());
           Navigator.of(context).pop();
+        },
+        onLocaleChanged: (localeCode) {
+          unawaited(_saveLocale(localeCode));
         },
       ),
     );
@@ -355,20 +513,22 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     );
   }
 
-  String _getWatchStatusText() {
+  String _getWatchStatusText(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return '워치: 미연동';
     switch (_watchStatus) {
       case WatchConnectionStatus.disconnected:
-        return '워치: 미연동';
+        return l10n.watchDisconnected;
       case WatchConnectionStatus.connecting:
-        return '워치: 연결 중...';
+        return l10n.watchConnecting;
       case WatchConnectionStatus.connected:
-        return '워치: 연결됨';
+        return l10n.watchConnected;
       case WatchConnectionStatus.syncing:
-        return '워치: 동기화 중...';
+        return l10n.watchSyncing;
       case WatchConnectionStatus.synced:
-        return '워치: 동기화됨(v${_state?.version ?? 0})';
+        return l10n.watchSynced;
       case WatchConnectionStatus.syncFailed:
-        return '워치: 전송 실패';
+        return l10n.watchSyncFailed;
     }
   }
 
@@ -396,10 +556,16 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       backgroundColor: baseBg,
       body: SafeArea(
         bottom: true,
-        child: Column(
+        child: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            PageView(
+              controller: _pageController ?? PageController(initialPage: 0),
+              children: [
+                // 메인 스코어 화면
+                Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -421,33 +587,48 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Undo 버튼
-                      IconButton(
-                        onPressed: _canUndo ? _undo : null,
-                        tooltip: '되돌리기',
-                        icon: Icon(
-                          Icons.undo,
-                          color: _canUndo
-                              ? scheme.onSurface.withValues(alpha: 0.9)
-                              : scheme.onSurface.withValues(alpha: 0.3),
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final l10n = AppLocalizations.of(context);
+                          return IconButton(
+                            onPressed: _canUndo ? _undo : null,
+                            tooltip: l10n?.undo ?? '실행 취소',
+                            icon: Icon(
+                              Icons.undo,
+                              color: _canUndo
+                                  ? scheme.onSurface.withValues(alpha: 0.9)
+                                  : scheme.onSurface.withValues(alpha: 0.3),
+                            ),
+                          );
+                        },
                       ),
                       // 리셋 버튼
-                      IconButton(
-                        onPressed: _reset,
-                        tooltip: '초기화',
-                        icon: Icon(
-                          Icons.restart_alt,
-                          color: scheme.onSurface.withValues(alpha: 0.9),
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final l10n = AppLocalizations.of(context);
+                          return IconButton(
+                            onPressed: _reset,
+                            tooltip: l10n?.reset ?? '초기화',
+                            icon: Icon(
+                              Icons.restart_alt,
+                              color: scheme.onSurface.withValues(alpha: 0.9),
+                            ),
+                          );
+                        },
                       ),
                       // 설정 버튼
-                      IconButton(
-                        onPressed: () => _showSettingsDialog(context),
-                        tooltip: '설정',
-                        icon: Icon(
-                          Icons.settings,
-                          color: scheme.onSurface.withValues(alpha: 0.9),
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final l10n = AppLocalizations.of(context);
+                          return IconButton(
+                            onPressed: () => _showSettingsDialog(context),
+                            tooltip: l10n?.settings ?? '설정',
+                            icon: Icon(
+                              Icons.settings,
+                              color: scheme.onSurface.withValues(alpha: 0.9),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -456,17 +637,17 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _getWatchStatusText(),
+                      _getWatchStatusText(context),
                       style: TextStyle(
                         color: scheme.onSurface.withValues(alpha: 0.7),
                         fontSize: 12,
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            Expanded(
+                    ],
+                    ),
+                  ),
+                    Expanded(
               child: Stack(
                 children: [
                   OrientationBuilder(
@@ -478,22 +659,32 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                         return Column(
                           children: [
                             Expanded(
-                              child: _ScoreHalf(
-                                background: homeBg,
-                                accent: homeAccent,
-                                label: 'HOME',
-                                score: _state!.scoreA,
-                                onInc: () => _inc(ScoreSide.home),
+                              child: Builder(
+                                builder: (context) {
+                                  final l10n = AppLocalizations.of(context);
+                                  return _ScoreHalf(
+                                    background: homeBg,
+                                    accent: homeAccent,
+                                    label: l10n?.home ?? 'HOME',
+                                    score: _state!.scoreA,
+                                    onInc: () => _inc(ScoreSide.home),
+                                  );
+                                },
                               ),
                             ),
                             Container(height: 1, color: scheme.onSurface.withValues(alpha: 0.12)),
                             Expanded(
-                              child: _ScoreHalf(
-                                background: awayBg,
-                                accent: awayAccent,
-                                label: 'AWAY',
-                                score: _state!.scoreB,
-                                onInc: () => _inc(ScoreSide.away),
+                              child: Builder(
+                                builder: (context) {
+                                  final l10n = AppLocalizations.of(context);
+                                  return _ScoreHalf(
+                                    background: awayBg,
+                                    accent: awayAccent,
+                                    label: l10n?.away ?? 'AWAY',
+                                    score: _state!.scoreB,
+                                    onInc: () => _inc(ScoreSide.away),
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -503,22 +694,32 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                         return Row(
                           children: [
                             Expanded(
-                              child: _ScoreHalf(
-                                background: homeBg,
-                                accent: homeAccent,
-                                label: 'HOME',
-                                score: _state!.scoreA,
-                                onInc: () => _inc(ScoreSide.home),
+                              child: Builder(
+                                builder: (context) {
+                                  final l10n = AppLocalizations.of(context);
+                                  return _ScoreHalf(
+                                    background: homeBg,
+                                    accent: homeAccent,
+                                    label: l10n?.home ?? 'HOME',
+                                    score: _state!.scoreA,
+                                    onInc: () => _inc(ScoreSide.home),
+                                  );
+                                },
                               ),
                             ),
                             Container(width: 1, color: scheme.onSurface.withValues(alpha: 0.12)),
                             Expanded(
-                              child: _ScoreHalf(
-                                background: awayBg,
-                                accent: awayAccent,
-                                label: 'AWAY',
-                                score: _state!.scoreB,
-                                onInc: () => _inc(ScoreSide.away),
+                              child: Builder(
+                                builder: (context) {
+                                  final l10n = AppLocalizations.of(context);
+                                  return _ScoreHalf(
+                                    background: awayBg,
+                                    accent: awayAccent,
+                                    label: l10n?.away ?? 'AWAY',
+                                    score: _state!.scoreB,
+                                    onInc: () => _inc(ScoreSide.away),
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -545,9 +746,48 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                       ),
                     ),
                   ),
-                ],
-              ),
+                  // 우측 중앙 스와이프 힌트 (문고리)
+                  Positioned(
+                    right: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.chevron_right,
+                          color: scheme.onSurface.withValues(alpha: 0.5),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                    ],
+                  ),
+                ),
+                  ],
+                ),
+                // 세트 히스토리 화면
+                _SetHistoryPage(
+                  state: _state!,
+                  homeBg: homeBg,
+                  awayBg: awayBg,
+                  homeAccent: homeAccent,
+                  awayAccent: awayAccent,
+                  scheme: scheme,
+                ),
+              ],
             ),
+            // 스와이프 가이드 오버레이
+            if (_showSwipeGuide)
+              _SwipeGuideOverlay(
+                onDismiss: _hideSwipeGuide,
+                scheme: scheme,
+              ),
           ],
         ),
       ),
@@ -830,6 +1070,305 @@ class _SetScoreDisplay extends StatelessWidget {
   }
 }
 
+class _SwipeGuideOverlay extends StatelessWidget {
+  final VoidCallback onDismiss;
+  final ColorScheme scheme;
+
+  const _SwipeGuideOverlay({
+    required this.onDismiss,
+    required this.scheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onDismiss,
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.7),
+        child: SafeArea(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 화살표 아이콘
+              Icon(
+                Icons.swipe_left,
+                color: scheme.primary,
+                size: 64,
+              ),
+              const SizedBox(height: 24),
+              // 텍스트
+              Builder(
+                builder: (context) {
+                  final l10n = AppLocalizations.of(context);
+                  if (l10n == null) return const SizedBox.shrink();
+                  return Text(
+                    '우측으로 스와이프하면\n세트 히스토리를 볼 수 있습니다',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+              // 닫기 버튼
+              Builder(
+                builder: (context) {
+                  final l10n = AppLocalizations.of(context);
+                  if (l10n == null) return const SizedBox.shrink();
+                  return ElevatedButton(
+                    onPressed: onDismiss,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: scheme.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.resetConfirm,
+                      style: TextStyle(
+                        color: scheme.onPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SetHistoryPage extends StatelessWidget {
+  final MatchState state;
+  final Color homeBg;
+  final Color awayBg;
+  final Color homeAccent;
+  final Color awayAccent;
+  final ColorScheme scheme;
+
+  const _SetHistoryPage({
+    required this.state,
+    required this.homeBg,
+    required this.awayBg,
+    required this.homeAccent,
+    required this.awayAccent,
+    required this.scheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const baseBg = Color(0xFF0B1220);
+    
+    return Container(
+      color: baseBg,
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              // 헤더
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.history,
+                      color: scheme.onSurface.withValues(alpha: 0.9),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Builder(
+                      builder: (context) {
+                        final l10n = AppLocalizations.of(context);
+                        return Text(
+                          l10n?.setHistory ?? '세트 히스토리',
+                          style: TextStyle(
+                            color: scheme.onSurface.withValues(alpha: 0.9),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              // 테이블
+              Expanded(
+                child: Builder(
+                  builder: (context) {
+                    final history = state.setHistory;
+                    if (history.isEmpty) {
+                      final l10n = AppLocalizations.of(context);
+                      return Center(
+                        child: Text(
+                          l10n?.noCompletedSets ?? '완료된 세트가 없습니다',
+                          style: TextStyle(
+                            color: scheme.onSurface.withValues(alpha: 0.5),
+                            fontSize: 14,
+                          ),
+                        ),
+                      );
+                    }
+                    return SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Table(
+                          border: TableBorder(
+                            horizontalInside: BorderSide(
+                              color: scheme.onSurface.withValues(alpha: 0.1),
+                              width: 1,
+                            ),
+                            top: BorderSide(
+                              color: scheme.onSurface.withValues(alpha: 0.1),
+                              width: 1,
+                            ),
+                            bottom: BorderSide(
+                              color: scheme.onSurface.withValues(alpha: 0.1),
+                              width: 1,
+                            ),
+                          ),
+                          columnWidths: const {
+                            0: FlexColumnWidth(1),
+                            1: FlexColumnWidth(2),
+                            2: FlexColumnWidth(2),
+                            3: FlexColumnWidth(2),
+                          },
+                          children: [
+                            // 헤더 행
+                            TableRow(
+                              decoration: BoxDecoration(
+                                color: scheme.onSurface.withValues(alpha: 0.05),
+                              ),
+                              children: [
+                                Builder(
+                                  builder: (context) {
+                                    final l10n = AppLocalizations.of(context);
+                                    return _buildTableCell(l10n?.set ?? '세트', scheme, isHeader: true);
+                                  },
+                                ),
+                                Builder(
+                                  builder: (context) {
+                                    final l10n = AppLocalizations.of(context);
+                                    return _buildTableCell(l10n?.home ?? 'HOME', scheme, isHeader: true, accent: homeAccent);
+                                  },
+                                ),
+                                Builder(
+                                  builder: (context) {
+                                    final l10n = AppLocalizations.of(context);
+                                    return _buildTableCell(l10n?.away ?? 'AWAY', scheme, isHeader: true, accent: awayAccent);
+                                  },
+                                ),
+                                Builder(
+                                  builder: (context) {
+                                    final l10n = AppLocalizations.of(context);
+                                    return _buildTableCell(l10n?.winner ?? '승자', scheme, isHeader: true);
+                                  },
+                                ),
+                              ],
+                            ),
+                            // 데이터 행
+                            ...history.map((setScore) {
+                              final winner = setScore.scoreA > setScore.scoreB
+                                  ? 'HOME'
+                                  : setScore.scoreB > setScore.scoreA
+                                      ? 'AWAY'
+                                      : '-';
+                              final winnerColor = setScore.scoreA > setScore.scoreB
+                                  ? homeAccent
+                                  : setScore.scoreB > setScore.scoreA
+                                      ? awayAccent
+                                      : scheme.onSurface.withValues(alpha: 0.5);
+                              
+                              return TableRow(
+                                children: [
+                                  _buildTableCell(
+                                    '${setScore.setNumber}',
+                                    scheme,
+                                  ),
+                                  _buildTableCell(
+                                    '${setScore.scoreA}',
+                                    scheme,
+                                    accent: homeAccent,
+                                  ),
+                                  _buildTableCell(
+                                    '${setScore.scoreB}',
+                                    scheme,
+                                    accent: awayAccent,
+                                  ),
+                                  _buildTableCell(
+                                    winner,
+                                    scheme,
+                                    accent: winnerColor,
+                                    isBold: true,
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          // 좌측 중앙 스와이프 힌트 (문고리)
+          Positioned(
+            left: 8,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.chevron_left,
+                  color: scheme.onSurface.withValues(alpha: 0.5),
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableCell(
+    String text,
+    ColorScheme scheme, {
+    Color? accent,
+    bool isHeader = false,
+    bool isBold = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: accent ?? scheme.onSurface.withValues(alpha: isHeader ? 0.9 : 0.8),
+          fontSize: isHeader ? 14 : 16,
+          fontWeight: isHeader || isBold ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
 class _ResetConfirmDialog extends StatelessWidget {
   final VoidCallback onConfirm;
 
@@ -869,74 +1408,92 @@ class _ResetConfirmDialog extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             // 제목
-            Text(
-              '모든 점수 초기화',
-              style: TextStyle(
-                color: scheme.onSurface,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
+            Builder(
+              builder: (context) {
+                final l10n = AppLocalizations.of(context);
+                if (l10n == null) return const SizedBox.shrink();
+                return Text(
+                  l10n.resetTitle,
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             // 메시지
-            Text(
-              '모든 점수와 세트 스코어, Undo 히스토리가 삭제됩니다.\n정말 초기화하시겠습니까?',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: scheme.onSurface.withValues(alpha: 0.8),
-                fontSize: 14,
-                height: 1.5,
-              ),
+            Builder(
+              builder: (context) {
+                final l10n = AppLocalizations.of(context);
+                if (l10n == null) return const SizedBox.shrink();
+                return Text(
+                  l10n.resetMessage,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onSurface.withValues(alpha: 0.8),
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 24),
             // 버튼들
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: scheme.onSurface.withValues(alpha: 0.3),
-                          width: 1,
+            Builder(
+              builder: (context) {
+                final l10n = AppLocalizations.of(context);
+                if (l10n == null) return const SizedBox.shrink();
+                return Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(
+                              color: scheme.onSurface.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          l10n.resetCancel,
+                          style: TextStyle(
+                            color: scheme.onSurface.withValues(alpha: 0.9),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
-                    child: Text(
-                      '취소',
-                      style: TextStyle(
-                        color: scheme.onSurface.withValues(alpha: 0.9),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: onConfirm,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: scheme.error,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          l10n.resetConfirm,
+                          style: TextStyle(
+                            color: scheme.onError,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: onConfirm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: scheme.error,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      '초기화',
-                      style: TextStyle(
-                        color: scheme.onError,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -980,11 +1537,15 @@ class _TouchZone extends StatelessWidget {
 
 class _SettingsDialog extends StatefulWidget {
   final GameRules rules;
+  final String currentLocale;
   final void Function(GameRules) onSave;
+  final void Function(String) onLocaleChanged;
 
   const _SettingsDialog({
     required this.rules,
+    required this.currentLocale,
     required this.onSave,
+    required this.onLocaleChanged,
   });
 
   @override
@@ -1027,11 +1588,13 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return const SizedBox.shrink();
     
     return AlertDialog(
       backgroundColor: const Color(0xFF0B1220),
       title: Text(
-        '게임 설정',
+        l10n.gameSettings,
         style: TextStyle(color: scheme.onSurface),
       ),
       content: SingleChildScrollView(
@@ -1039,9 +1602,34 @@ class _SettingsDialogState extends State<_SettingsDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 언어 설정
+            Text(
+              l10n.language,
+              style: TextStyle(
+                color: scheme.onSurface.withValues(alpha: 0.8),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...AppLocale.values.map((locale) {
+              return RadioListTile<String>(
+                title: Text(locale.displayName),
+                value: locale.code,
+                groupValue: widget.currentLocale,
+                onChanged: (value) {
+                  if (value != null) {
+                    widget.onLocaleChanged(value);
+                  }
+                },
+                activeColor: scheme.primary,
+                contentPadding: EdgeInsets.zero,
+              );
+            }),
+            const SizedBox(height: 24),
             // 게임 규칙
             Text(
-              '게임 규칙',
+              l10n.gameRules,
               style: TextStyle(
                 color: scheme.onSurface.withValues(alpha: 0.8),
                 fontSize: 14,
@@ -1054,7 +1642,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
               keyboardType: TextInputType.number,
               style: TextStyle(color: scheme.onSurface),
               decoration: InputDecoration(
-                labelText: '최대 점수',
+                labelText: l10n.maxScore,
                 labelStyle: TextStyle(color: scheme.onSurface.withValues(alpha: 0.7)),
                 border: OutlineInputBorder(
                   borderSide: BorderSide(color: scheme.onSurface.withValues(alpha: 0.3)),
@@ -1081,7 +1669,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 ),
                 Expanded(
                   child: Text(
-                    '듀스 규칙 활성화',
+                    l10n.deuceEnabled,
                     style: TextStyle(color: scheme.onSurface),
                   ),
                 ),
@@ -1094,7 +1682,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 keyboardType: TextInputType.number,
                 style: TextStyle(color: scheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: '듀스 점수 차이',
+                  labelText: l10n.deuceMargin,
                   labelStyle: TextStyle(color: scheme.onSurface.withValues(alpha: 0.7)),
                   border: OutlineInputBorder(
                     borderSide: BorderSide(color: scheme.onSurface.withValues(alpha: 0.3)),
@@ -1114,11 +1702,11 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('취소', style: TextStyle(color: scheme.onSurface.withValues(alpha: 0.7))),
+          child: Text(l10n.resetCancel, style: TextStyle(color: scheme.onSurface.withValues(alpha: 0.7))),
         ),
         TextButton(
           onPressed: _save,
-          child: Text('저장', style: TextStyle(color: scheme.primary)),
+          child: Text(l10n.save, style: TextStyle(color: scheme.primary)),
         ),
       ],
     );

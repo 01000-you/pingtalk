@@ -49,6 +49,39 @@ class GameRules {
   }
 }
 
+/// 각 세트의 게임 스코어 정보
+class SetScore {
+  final int setNumber; // 세트 번호 (1부터 시작)
+  final int scoreA;    // A의 게임 스코어
+  final int scoreB;    // B의 게임 스코어
+  final DateTime completedAt; // 세트 종료 시간
+
+  const SetScore({
+    required this.setNumber,
+    required this.scoreA,
+    required this.scoreB,
+    required this.completedAt,
+  });
+
+  Map<String, Object?> toJson() => {
+        'setNumber': setNumber,
+        'scoreA': scoreA,
+        'scoreB': scoreB,
+        'completedAt': completedAt.toUtc().toIso8601String(),
+      };
+
+  static SetScore fromJson(Map<String, Object?> json) {
+    return SetScore(
+      setNumber: (json['setNumber'] as num?)?.toInt() ?? 0,
+      scoreA: (json['scoreA'] as num?)?.toInt() ?? 0,
+      scoreB: (json['scoreB'] as num?)?.toInt() ?? 0,
+      completedAt: DateTime.parse(
+        (json['completedAt'] as String?) ?? DateTime.now().toIso8601String(),
+      ),
+    );
+  }
+}
+
 class MatchState {
   final String matchId;
   final String playerAName;
@@ -60,6 +93,9 @@ class MatchState {
   /// 예: [1, 0] = A가 1세트, B가 0세트 승리
   final List<int> setScoresA;
   final List<int> setScoresB;
+
+  /// 각 세트의 게임 스코어 히스토리
+  final List<SetScore> setHistory;
 
   /// 현재 세트 번호 (0부터 시작)
   final int currentSet;
@@ -81,6 +117,7 @@ class MatchState {
     required this.scoreB,
     this.setScoresA = const [],
     this.setScoresB = const [],
+    this.setHistory = const [],
     this.currentSet = 0,
     this.rules = const GameRules(),
     required this.version,
@@ -96,6 +133,7 @@ class MatchState {
     int? scoreB,
     List<int>? setScoresA,
     List<int>? setScoresB,
+    List<SetScore>? setHistory,
     int? currentSet,
     GameRules? rules,
     int? version,
@@ -110,6 +148,7 @@ class MatchState {
       scoreB: scoreB ?? this.scoreB,
       setScoresA: setScoresA ?? this.setScoresA,
       setScoresB: setScoresB ?? this.setScoresB,
+      setHistory: setHistory ?? this.setHistory,
       currentSet: currentSet ?? this.currentSet,
       rules: rules ?? this.rules,
       version: version ?? this.version,
@@ -126,6 +165,7 @@ class MatchState {
         'scoreB': scoreB,
         'setScoresA': setScoresA,
         'setScoresB': setScoresB,
+        'setHistory': setHistory.map((s) => s.toJson()).toList(),
         'currentSet': currentSet,
         'rules': rules.toJson(),
         'version': version,
@@ -147,6 +187,16 @@ class MatchState {
       }
     }
     
+    List<SetScore> parseSetHistory(dynamic raw) {
+      if (raw == null) return const [];
+      if (raw is! List) return const [];
+      try {
+        return raw.map((e) => SetScore.fromJson(e as Map<String, Object?>)).toList();
+      } catch (_) {
+        return const [];
+      }
+    }
+    
     return MatchState(
       matchId: json['matchId'] as String? ?? 'local',
       playerAName: json['playerAName'] as String? ?? 'A',
@@ -155,6 +205,7 @@ class MatchState {
       scoreB: (json['scoreB'] as num?)?.toInt() ?? 0,
       setScoresA: parseSetScores(setScoresARaw),
       setScoresB: parseSetScores(setScoresBRaw),
+      setHistory: parseSetHistory(json['setHistory']),
       currentSet: (json['currentSet'] as num?)?.toInt() ?? 0,
       rules: json['rules'] != null && json['rules'] is Map
           ? GameRules.fromJson(json['rules'] as Map<String, Object?>)

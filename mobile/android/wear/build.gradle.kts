@@ -5,13 +5,12 @@ plugins {
 
 android {
     // NOTE: Play Store "워치 지원 앱" 흐름을 위해 (최종적으로) 폰 앱과 동일 applicationId 유지.
-    // 지금은 Flutter 앱이 com.example.mobile 이므로 동일하게 맞춤.
-    namespace = "com.example.mobile.wear"
+    namespace = "com.pingtalk.app.wear"
     // wear 모듈은 Flutter 플러그인을 쓰지 않으므로 값을 명시
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.mobile"
+        applicationId = "com.pingtalk.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

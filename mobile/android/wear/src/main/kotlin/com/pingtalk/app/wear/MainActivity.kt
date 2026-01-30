@@ -1,6 +1,5 @@
-package com.example.mobile.wear
+package com.pingtalk.app.wear
 
-import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
@@ -22,11 +21,14 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     private val pathCommand = "/pingtalk/command"
     private val pathPing = "/pingtalk/ping"
     private val pathState = "/pingtalk/state"
+    private val pathLanguage = "/pingtalk/language"
 
     private var selectedSide: String = "HOME"
     private var scoreHome: Int = 0
     private var scoreAway: Int = 0
     private var version: Int = 0
+    private var currentLocale: String = "ko"
+    private var currentStatus: String = "disconnected" // 현재 상태 저장
 
     private lateinit var tvStatus: TextView
     private lateinit var tvScore: TextView
@@ -70,56 +72,23 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         btnReset.setOnClickListener { showResetConfirmDialog() }
         btnUndo.setOnClickListener { sendCommand("undo", null) }
 
-        updateLayoutOrientation()
+        // 초기 상태 메시지 설정
+        currentStatus = "disconnected"
+        tvStatus.text = getStatusText(currentStatus)
         render()
     }
 
     override fun onResume() {
         super.onResume()
-        updateLayoutOrientation()
         Wearable.getMessageClient(this).addListener(this)
         // 워치 앱 실행 시 폰에 ping 보내기(폰 UI에 "연결됨" 표시)
         sendToAllNodes(pathPing, ByteArray(0)) { ok ->
-            runOnUiThread { tvStatus.text = if (ok) "폰: 연결됨" else "폰: 미연결" }
+            runOnUiThread { 
+                currentStatus = if (ok) "connected" else "disconnected"
+                tvStatus.text = getStatusText(currentStatus)
+                render() // 언어 설정 반영
+            }
         }
-    }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        updateLayoutOrientation()
-    }
-
-    private fun updateLayoutOrientation() {
-        val displayMetrics = resources.displayMetrics
-        val width = displayMetrics.widthPixels
-        val height = displayMetrics.heightPixels
-        
-        // 세로가 더 길면 vertical, 가로가 더 길면 horizontal
-        val isPortrait = height > width
-        
-        layoutHomeAway.orientation = if (isPortrait) {
-            LinearLayout.VERTICAL
-        } else {
-            LinearLayout.HORIZONTAL
-        }
-        
-        // 세로 모드일 때는 margin을 상하로, 가로 모드일 때는 좌우로
-        val marginPx = (4 * resources.displayMetrics.density).toInt() // 4dp
-        val homeParams = btnHome.layoutParams as LinearLayout.LayoutParams
-        val awayParams = btnAway.layoutParams as LinearLayout.LayoutParams
-        
-        if (isPortrait) {
-            // 세로 모드: HOME 위, AWAY 아래
-            homeParams.setMargins(0, 0, 0, marginPx)
-            awayParams.setMargins(0, marginPx, 0, 0)
-        } else {
-            // 가로 모드: HOME 왼쪽, AWAY 오른쪽
-            homeParams.setMargins(0, 0, marginPx, 0)
-            awayParams.setMargins(marginPx, 0, 0, 0)
-        }
-        
-        btnHome.layoutParams = homeParams
-        btnAway.layoutParams = awayParams
     }
 
     override fun onPause() {
@@ -128,23 +97,93 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     }
 
     override fun onMessageReceived(event: com.google.android.gms.wearable.MessageEvent) {
-        if (event.path != pathState) return
-        val payload = event.data?.toString(Charsets.UTF_8) ?: return
-        val json = JSONObject(payload)
+        when (event.path) {
+            pathState -> {
+                val payload = event.data?.toString(Charsets.UTF_8) ?: return
+                val json = JSONObject(payload)
 
-        // Flutter 쪽 MatchState JSON 형태를 그대로 수용(필요한 필드만 사용)
-        scoreHome = json.optInt("scoreA", scoreHome)
-        scoreAway = json.optInt("scoreB", scoreAway)
-        version = json.optInt("version", version)
+                // Flutter 쪽 MatchState JSON 형태를 그대로 수용(필요한 필드만 사용)
+                scoreHome = json.optInt("scoreA", scoreHome)
+                scoreAway = json.optInt("scoreB", scoreAway)
+                version = json.optInt("version", version)
 
-        runOnUiThread {
-            tvStatus.text = "폰: 동기화됨(v$version)"
-            render()
+                runOnUiThread {
+                    currentStatus = "synced"
+                    tvStatus.text = getStatusText(currentStatus)
+                    render()
+                }
+            }
+            pathLanguage -> {
+                val payload = event.data?.toString(Charsets.UTF_8) ?: return
+                val json = JSONObject(payload)
+                val newLocale = json.optString("locale", "ko")
+                if (newLocale != currentLocale) {
+                    currentLocale = newLocale
+                    runOnUiThread {
+                        // 모든 UI 텍스트 업데이트 (현재 상태 유지)
+                        tvStatus.text = getStatusText(currentStatus)
+                        render()
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun getStatusText(status: String): String {
+        return when (currentLocale) {
+            "en" -> when (status) {
+                "connected" -> "Phone: Connected"
+                "disconnected" -> "Phone: Disconnected"
+                "synced" -> "Phone: Synced"
+                "sent" -> "Phone: Sent"
+                "sendFailed" -> "Phone: Send Failed"
+                else -> "Phone: Disconnected"
+            }
+            "zh" -> when (status) {
+                "connected" -> "手机：已连接"
+                "disconnected" -> "手机：未连接"
+                "synced" -> "手机：已同步"
+                "sent" -> "手机：已发送"
+                "sendFailed" -> "手机：发送失败"
+                else -> "手机：未连接"
+            }
+            "ja" -> when (status) {
+                "connected" -> "電話：接続済み"
+                "disconnected" -> "電話：未接続"
+                "synced" -> "電話：同期済み"
+                "sent" -> "電話：送信済み"
+                "sendFailed" -> "電話：送信失敗"
+                else -> "電話：未接続"
+            }
+            else -> when (status) {
+                "connected" -> "폰: 연결됨"
+                "disconnected" -> "폰: 미연결"
+                "synced" -> "폰: 동기화됨"
+                "sent" -> "폰: 전송됨"
+                "sendFailed" -> "폰: 전송 실패"
+                else -> "폰: 미연결"
+            }
+        }
+    }
+    
+    private fun getResetDialogTexts(): Triple<String, String, String> {
+        return when (currentLocale) {
+            "en" -> Triple("Reset", "All scores, set scores,\nand undo history will be deleted.\nAre you sure you want to reset?", "Reset")
+            "zh" -> Triple("重置", "所有分数、局分\n和撤销历史将被删除。\n确定要重置吗？", "重置")
+            "ja" -> Triple("リセット", "すべてのスコア、セットスコア、\n元に戻す履歴が削除されます。\n本当にリセットしますか？", "リセット")
+            else -> Triple("초기화", "모든 점수와 세트 스코어,\nUndo 히스토리가 삭제됩니다.\n정말 초기화하시겠습니까?", "초기화")
         }
     }
 
     private fun render() {
         tvScore.text = "$scoreHome : $scoreAway"
+        
+        // 버튼 텍스트 다국어 설정
+        val (homeText, awayText, resetText, undoText) = getButtonTexts()
+        btnHome.text = homeText
+        btnAway.text = awayText
+        btnReset.text = resetText
+        btnUndo.text = undoText
         
         // 버튼은 항상 활성화 상태로 유지 (토글 가능하게)
         val isHomeSelected = selectedSide == "HOME"
@@ -200,15 +239,34 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         btnUndo.setTextColor(Color.WHITE)
         btnUndo.alpha = 1.0f
     }
+    
+    private fun getButtonTexts(): Quadruple<String, String, String, String> {
+        return when (currentLocale) {
+            "en" -> Quadruple("HOME", "AWAY", "RESET", "UNDO")
+            "zh" -> Quadruple("主队", "客队", "重置", "撤销")
+            "ja" -> Quadruple("ホーム", "アウェイ", "リセット", "元に戻す")
+            else -> Quadruple("HOME", "AWAY", "초기화", "실행 취소")
+        }
+    }
+    
+    private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     private fun showResetConfirmDialog() {
+        val (title, message, confirmText) = getResetDialogTexts()
+        val cancelText = when (currentLocale) {
+            "en" -> "Cancel"
+            "zh" -> "取消"
+            "ja" -> "キャンセル"
+            else -> "취소"
+        }
+        
         val dialog = AlertDialog.Builder(this)
-            .setTitle("초기화")
-            .setMessage("모든 점수와 세트 스코어,\nUndo 히스토리가 삭제됩니다.\n정말 초기화하시겠습니까?")
-            .setPositiveButton("초기화") { _, _ ->
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(confirmText) { _, _ ->
                 sendCommand("reset", null)
             }
-            .setNegativeButton("취소", null)
+            .setNegativeButton(cancelText, null)
             .create()
         
         dialog.setOnShowListener {
@@ -216,13 +274,32 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
             val bgColor = Color.rgb(11, 18, 32) // 0xFF0B1220
             dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bgColor))
             
-            // 제목 텍스트 색상, 중앙정렬, 볼드
-            val titleView = dialog.findViewById<TextView>(android.R.id.title)
-            if (titleView != null) {
-                titleView.setTextColor(Color.WHITE)
-                titleView.gravity = android.view.Gravity.CENTER
-                titleView.setTypeface(null, android.graphics.Typeface.BOLD)
-                titleView.textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+            // 제목 TextView 찾기 - 재귀적으로 모든 TextView 검색
+            fun findTitleView(view: android.view.View?): TextView? {
+                if (view == null) return null
+                if (view is TextView && view.text == "초기화") {
+                    return view
+                }
+                if (view is android.view.ViewGroup) {
+                    for (i in 0 until view.childCount) {
+                        val found = findTitleView(view.getChildAt(i))
+                        if (found != null) return found
+                    }
+                }
+                return null
+            }
+            
+            val titleView = dialog.findViewById<TextView>(android.R.id.title) 
+                ?: findTitleView(dialog.window?.decorView)
+            
+            titleView?.let {
+                it.setTextColor(Color.WHITE)
+                it.gravity = android.view.Gravity.CENTER
+                it.setTypeface(null, android.graphics.Typeface.BOLD)
+                it.textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+                // 부모 레이아웃의 중앙정렬도 설정 (LinearLayout인 경우)
+                val parent = it.parent as? LinearLayout
+                parent?.gravity = android.view.Gravity.CENTER
             }
             
             // 메시지 텍스트 색상 및 중앙정렬
@@ -257,7 +334,10 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         cmd.put("deviceId", "wearos")
 
         sendToAllNodes(pathCommand, cmd.toString().toByteArray(Charsets.UTF_8)) { ok ->
-            runOnUiThread { tvStatus.text = if (ok) "폰: 전송됨" else "폰: 전송 실패" }
+            runOnUiThread { 
+                currentStatus = if (ok) "sent" else "sendFailed"
+                tvStatus.text = getStatusText(currentStatus)
+            }
         }
     }
 

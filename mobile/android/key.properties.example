@@ -1,0 +1,9 @@
+# Keystore 설정 파일
+# 이 파일을 key.properties로 복사하고 실제 값을 입력하세요.
+# 주의: key.properties는 Git에 커밋하지 마세요!
+
+storePassword=여기에_keystore_비밀번호_입력
+keyPassword=여기에_키_비밀번호_입력
+keyAlias=pingtalk
+storeFile=pingtalk-release-key.jks
+
