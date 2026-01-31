@@ -1,6 +1,16 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+// key.properties 파일 읽기
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -13,12 +23,35 @@ android {
         applicationId = "com.pingtalk.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.0.1"
+        // Play Console에서 모바일과 Wear OS가 별도 페이지로 관리되므로
+        // 버전 코드 충돌을 방지하기 위해 오프셋(1000) 추가
+        // 모바일: 1, 2, 3... → Wear OS: 1001, 1002, 1003...
+        // versionName은 모바일과 동일하게 유지 (사용자에게 보이는 버전)
+        versionCode = 1002  // 모바일 versionCode(2) + 1000
+        versionName = "1.0.1"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"]?.toString() ?: ""
+                keyPassword = keystoreProperties["keyPassword"]?.toString() ?: ""
+                val keystoreFileName = keystoreProperties["storeFile"]?.toString() ?: ""
+                storeFile = if (keystoreFileName.isNotEmpty()) {
+                    rootProject.file(keystoreFileName)
+                } else {
+                    file("")
+                }
+                storePassword = keystoreProperties["storePassword"]?.toString() ?: ""
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

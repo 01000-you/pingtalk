@@ -79,6 +79,9 @@ class AppLocalizations {
   
   // 스플래시
   String get splashTagline => _getText('스코어 관리의 새로운 기준', 'The New Standard for Score Management', '分数管理的新标准', 'スコア管理の新しい基準');
+  
+  // 일반 버튼
+  String get ok => _getText('확인', 'OK', '确定', '了解');
 
   String _getText(String ko, String en, String zh, String ja) {
     switch (locale.languageCode) {

@@ -36,7 +36,6 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     private lateinit var layoutHomeAway: LinearLayout
     private lateinit var btnHome: Button
     private lateinit var btnAway: Button
-    private lateinit var btnInc: Button
     private lateinit var btnReset: Button
     private lateinit var btnUndo: Button
 
@@ -56,20 +55,20 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
         layoutHomeAway = findViewById(R.id.layoutHomeAway)
         btnHome = findViewById(R.id.btnHome)
         btnAway = findViewById(R.id.btnAway)
-        btnInc = findViewById(R.id.btnInc)
         btnReset = findViewById(R.id.btnReset)
         btnUndo = findViewById(R.id.btnUndo)
 
         btnHome.setOnClickListener {
             selectedSide = "HOME"
+            sendCommand("inc", "HOME")
             render()
         }
         btnAway.setOnClickListener {
             selectedSide = "AWAY"
+            sendCommand("inc", "AWAY")
             render()
         }
 
-        btnInc.setOnClickListener { sendCommand("inc", selectedSide) }
         btnReset.setOnClickListener { showResetConfirmDialog() }
         btnUndo.setOnClickListener { sendCommand("undo", null) }
 
@@ -137,49 +136,18 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     }
     
     private fun getStatusText(status: String): String {
-        return when (currentLocale) {
-            "en" -> when (status) {
-                "connected" -> "Phone: Connected"
-                "disconnected" -> "Phone: Disconnected"
-                "synced" -> "Phone: Synced"
-                "sent" -> "Phone: Sent"
-                "sendFailed" -> "Phone: Send Failed"
-                else -> "Phone: Disconnected"
-            }
-            "zh" -> when (status) {
-                "connected" -> "手机：已连接"
-                "disconnected" -> "手机：未连接"
-                "synced" -> "手机：已同步"
-                "sent" -> "手机：已发送"
-                "sendFailed" -> "手机：发送失败"
-                else -> "手机：未连接"
-            }
-            "ja" -> when (status) {
-                "connected" -> "電話：接続済み"
-                "disconnected" -> "電話：未接続"
-                "synced" -> "電話：同期済み"
-                "sent" -> "電話：送信済み"
-                "sendFailed" -> "電話：送信失敗"
-                else -> "電話：未接続"
-            }
-            else -> when (status) {
-                "connected" -> "폰: 연결됨"
-                "disconnected" -> "폰: 미연결"
-                "synced" -> "폰: 동기화됨"
-                "sent" -> "폰: 전송됨"
-                "sendFailed" -> "폰: 전송 실패"
-                else -> "폰: 미연결"
-            }
+        return when (status) {
+            "connected" -> "Phone: Connected"
+            "disconnected" -> "Phone: Disconnected"
+            "synced" -> "Phone: Synced"
+            "sent" -> "Phone: Sent"
+            "sendFailed" -> "Phone: Send Failed"
+            else -> "Phone: Disconnected"
         }
     }
     
     private fun getResetDialogTexts(): Triple<String, String, String> {
-        return when (currentLocale) {
-            "en" -> Triple("Reset", "All scores, set scores,\nand undo history will be deleted.\nAre you sure you want to reset?", "Reset")
-            "zh" -> Triple("重置", "所有分数、局分\n和撤销历史将被删除。\n确定要重置吗？", "重置")
-            "ja" -> Triple("リセット", "すべてのスコア、セットスコア、\n元に戻す履歴が削除されます。\n本当にリセットしますか？", "リセット")
-            else -> Triple("초기화", "모든 점수와 세트 스코어,\nUndo 히스토리가 삭제됩니다.\n정말 초기화하시겠습니까?", "초기화")
-        }
+        return Triple("Reset", "All scores, set scores,\nand undo history will be deleted.\nAre you sure you want to reset?", "Reset")
     }
 
     private fun render() {
@@ -225,17 +193,6 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
             btnAway.alpha = 1.0f
         }
         
-        // +1 버튼도 선택된 쪽의 accent 색상에 맞게 조정
-        val incColor = if (isHomeSelected) {
-            Color.rgb(100, 240, 255) // 더 밝은 청록색
-        } else {
-            Color.rgb(255, 220, 120) // 더 밝은 노란색
-        }
-        
-        btnInc.setBackgroundColor(incColor)
-        btnInc.setTextColor(Color.BLACK)
-        btnInc.alpha = 1.0f
-        
         // RESET 버튼: 빨간색 계열 (위험한 작업)
         btnReset.setBackgroundColor(Color.rgb(220, 80, 80)) // 빨간색
         btnReset.setTextColor(Color.WHITE)
@@ -248,24 +205,14 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     }
     
     private fun getButtonTexts(): Quadruple<String, String, String, String> {
-        return when (currentLocale) {
-            "en" -> Quadruple("HOME", "AWAY", "RESET", "UNDO")
-            "zh" -> Quadruple("主队", "客队", "重置", "撤销")
-            "ja" -> Quadruple("ホーム", "アウェイ", "リセット", "元に戻す")
-            else -> Quadruple("HOME", "AWAY", "초기화", "실행 취소")
-        }
+        return Quadruple("HOME", "AWAY", "RESET", "UNDO")
     }
     
     private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     private fun showResetConfirmDialog() {
         val (title, message, confirmText) = getResetDialogTexts()
-        val cancelText = when (currentLocale) {
-            "en" -> "Cancel"
-            "zh" -> "取消"
-            "ja" -> "キャンセル"
-            else -> "취소"
-        }
+        val cancelText = "Cancel"
         
         val dialog = AlertDialog.Builder(this)
             .setTitle(title)
@@ -284,7 +231,7 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
             // 제목 TextView 찾기 - 재귀적으로 모든 TextView 검색
             fun findTitleView(view: android.view.View?): TextView? {
                 if (view == null) return null
-                if (view is TextView && view.text == "초기화") {
+                if (view is TextView && view.text == "Reset") {
                     return view
                 }
                 if (view is android.view.ViewGroup) {

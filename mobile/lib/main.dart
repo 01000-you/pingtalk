@@ -65,7 +65,7 @@ class _PingTalkAppState extends State<PingTalkApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PingTalk',
+      title: 'PingBoard',
       locale: _locale,
       theme: ThemeData(
         useMaterial3: true,
@@ -364,6 +364,11 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
           return;
         }
 
+        // Reset 명령은 히스토리를 먼저 초기화
+        if (cmd.type == CommandType.reset) {
+          _stateHistory.clear();
+        }
+
         _applyCommand(cmd, appliedBy: UpdatedBy.watch);
         await _pushStateToWatch();
         return;
@@ -404,7 +409,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       _watchStatus = WatchConnectionStatus.syncing;
     });
 
-    // 히스토리에 추가
+    // 히스토리에 추가 (리셋 명령도 추가 - 리셋된 상태에서 시작)
     _addToHistory(next);
 
     // 상태 저장
@@ -577,7 +582,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              'PINGTALK',
+                              'PINGBOARD',
                               style: TextStyle(
                                 color: scheme.onSurface.withValues(alpha: 0.9),
                                 fontWeight: FontWeight.w700,
@@ -596,7 +601,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                                   final l10n = AppLocalizations.of(context);
                                   return IconButton(
                                     onPressed: _canUndo ? _undo : null,
-                                    tooltip: l10n?.undo ?? '실행 취소',
+                                    tooltip: 'UNDO',
                                     icon: Icon(
                                       Icons.undo,
                                       color: _canUndo
@@ -616,7 +621,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                                   final l10n = AppLocalizations.of(context);
                                   return IconButton(
                                     onPressed: _reset,
-                                    tooltip: l10n?.reset ?? '초기화',
+                                    tooltip: 'RESET',
                                     icon: Icon(
                                       Icons.restart_alt,
                                       color: scheme.onSurface.withValues(
@@ -1166,7 +1171,7 @@ class _SwipeGuideOverlay extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      l10n.resetConfirm,
+                      l10n.ok,
                       style: TextStyle(
                         color: scheme.onPrimary,
                         fontSize: 16,
@@ -1438,6 +1443,8 @@ class _ResetConfirmDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return const SizedBox.shrink();
     const baseBg = Color(0xFF0B1220);
 
     return Dialog(
@@ -1465,92 +1472,75 @@ class _ResetConfirmDialog extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             // 제목
-            Builder(
-              builder: (context) {
-                final l10n = AppLocalizations.of(context);
-                if (l10n == null) return const SizedBox.shrink();
-                return Text(
-                  l10n.resetTitle,
-                  style: TextStyle(
-                    color: scheme.onSurface,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                );
-              },
+            Text(
+              l10n.resetTitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 12),
             // 메시지
-            Builder(
-              builder: (context) {
-                final l10n = AppLocalizations.of(context);
-                if (l10n == null) return const SizedBox.shrink();
-                return Text(
-                  l10n.resetMessage,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: scheme.onSurface.withValues(alpha: 0.8),
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                );
-              },
+            Text(
+              l10n.resetMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: scheme.onSurface.withValues(alpha: 0.8),
+                fontSize: 14,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 24),
             // 버튼들
-            Builder(
-              builder: (context) {
-                final l10n = AppLocalizations.of(context);
-                if (l10n == null) return const SizedBox.shrink();
-                return Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(
-                              color: scheme.onSurface.withValues(alpha: 0.3),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.resetCancel,
-                          style: TextStyle(
-                            color: scheme.onSurface.withValues(alpha: 0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: scheme.onSurface.withValues(alpha: 0.3),
+                          width: 1,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: onConfirm,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: scheme.error,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.resetConfirm,
-                          style: TextStyle(
-                            color: scheme.onError,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                    child: Text(
+                      l10n.resetCancel,
+                      style: TextStyle(
+                        color: scheme.onSurface.withValues(alpha: 0.9),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                );
-              },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: scheme.error,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.resetConfirm,
+                      style: TextStyle(
+                        color: scheme.onError,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

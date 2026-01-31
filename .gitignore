@@ -25,3 +25,6 @@ Thumbs.db
 **/.symlinks/
 **/Runner.xcworkspace/
 
+# Assets
+assets/
+

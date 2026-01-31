@@ -212,7 +212,7 @@ class SplashScreen extends StatelessWidget {
                       ],
                     ).createShader(bounds),
                     child: const Text(
-                      'PINGTALK',
+                      'PINGBOARD',
                       style: TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
