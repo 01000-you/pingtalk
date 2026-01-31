@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:pingtalk_core/pingtalk_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'l10n/app_localizations.dart';
@@ -143,6 +145,7 @@ class ScoreboardPage extends StatefulWidget {
 
 class _ScoreboardPageState extends State<ScoreboardPage> {
   static const MethodChannel _watchChannel = MethodChannel('pingtalk/watch');
+  static const MethodChannel _mediaChannel = MethodChannel('pingtalk/media');
   static const String _prefsKeyState = 'match_state';
   static const String _prefsKeySwipeGuideShown = 'swipe_guide_shown';
   static const String _prefsKeyLocale = 'app_locale';
@@ -164,6 +167,21 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
   bool _showSwipeGuide = false;
   PageController? _pageController;
   Locale _currentLocale = const Locale('ko');
+
+  // 스톱워치 관련 상태
+  int _elapsedSeconds = 0;
+  bool _isStopwatchRunning = false;
+  Timer? _stopwatchTimer;
+  int _stopwatchPausedSeconds = 0;
+
+  // 카메라 관련 상태
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  bool _isCameraInitialized = false;
+  bool _isCameraPreviewVisible = false;
+  Timer? _cameraPreviewTimer;
+  bool _isRecording = false;
+  CameraLensDirection _currentCameraDirection = CameraLensDirection.front;
 
   @override
   void initState() {
@@ -214,6 +232,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       // (플러그인이 아직 준비되지 않았을 수 있음)
     }
     _watchChannel.setMethodCallHandler(_onWatchMethodCall);
+    await _initializeCamera();
 
     // 스와이프 가이드 표시 여부 확인 (초기화 완료 후)
     final guideShown = _prefs?.getBool(_prefsKeySwipeGuideShown) ?? false;
@@ -221,6 +240,227 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       setState(() {
         _isInitialized = true;
         _showSwipeGuide = !guideShown;
+      });
+    }
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      // 카메라 권한 확인
+      final cameraStatus = await Permission.camera.status;
+      final microphoneStatus = await Permission.microphone.status;
+      
+      // Android 13+ 미디어 권한 확인
+      final storageStatus = await Permission.storage.status;
+      final photosStatus = await Permission.photos.status;
+
+      if (!cameraStatus.isGranted) {
+        await Permission.camera.request();
+      }
+      if (!microphoneStatus.isGranted) {
+        await Permission.microphone.request();
+      }
+      // Android 13 이상에서는 photos 권한, 이하는 storage 권한
+      if (!photosStatus.isGranted && !storageStatus.isGranted) {
+        await Permission.photos.request();
+        if (!await Permission.photos.isGranted) {
+          await Permission.storage.request();
+        }
+      }
+
+      // 권한이 허용된 경우에만 카메라 초기화
+      if (await Permission.camera.isGranted) {
+        _cameras = await availableCameras();
+        if (_cameras != null && _cameras!.isNotEmpty) {
+          // 전면 카메라 우선 사용
+          final camera = _cameras!.firstWhere(
+            (c) => c.lensDirection == CameraLensDirection.front,
+            orElse: () => _cameras!.first,
+          );
+
+          _cameraController = CameraController(
+            camera,
+            ResolutionPreset.medium,
+            enableAudio: true,
+          );
+
+          await _cameraController!.initialize();
+          if (mounted) {
+            setState(() {
+              _isCameraInitialized = true;
+              _currentCameraDirection = camera.lensDirection;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // 카메라 초기화 실패 시 무시 (카메라가 없는 기기일 수 있음)
+      print('Camera initialization failed: $e');
+    }
+  }
+
+  void _showCameraPreview() {
+    if (!_isCameraInitialized || _cameraController == null) return;
+
+    setState(() {
+      _isCameraPreviewVisible = true;
+    });
+
+    _resetCameraPreviewTimer();
+  }
+
+  void _resetCameraPreviewTimer() {
+    // 30초 후 자동으로 닫기
+    _cameraPreviewTimer?.cancel();
+    _cameraPreviewTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted) {
+        _hideCameraPreview();
+      }
+    });
+  }
+
+  void _hideCameraPreview() {
+    _cameraPreviewTimer?.cancel();
+    setState(() {
+      _isCameraPreviewVisible = false;
+    });
+  }
+
+  void _showVideoSavedNotification(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const baseBg = Color(0xFF0B1220);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Container(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check_circle,
+                  color: scheme.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '동영상이 갤러리에 저장되었습니다',
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: baseBg,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: scheme.primary.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        elevation: 8,
+      ),
+    );
+  }
+
+  Future<void> _switchCamera() async {
+    if (!_isCameraInitialized || _cameras == null || _cameras!.isEmpty) return;
+    if (_isRecording) return; // 녹화 중에는 카메라 전환 불가
+
+    try {
+      // 현재 카메라 방향의 반대 방향 찾기
+      final newDirection = _currentCameraDirection == CameraLensDirection.front
+          ? CameraLensDirection.back
+          : CameraLensDirection.front;
+
+      final newCamera = _cameras!.firstWhere(
+        (c) => c.lensDirection == newDirection,
+        orElse: () => _cameras!.first,
+      );
+
+      // 기존 카메라 컨트롤러 해제
+      await _cameraController?.dispose();
+
+      // 새 카메라 컨트롤러 생성
+      _cameraController = CameraController(
+        newCamera,
+        ResolutionPreset.medium,
+        enableAudio: true,
+      );
+
+      await _cameraController!.initialize();
+      if (mounted) {
+        setState(() {
+          _currentCameraDirection = newCamera.lensDirection;
+        });
+      }
+    } catch (e) {
+      print('Failed to switch camera: $e');
+    }
+  }
+
+  Future<void> _startRecording() async {
+    if (!_isCameraInitialized || _cameraController == null || _isRecording) {
+      return;
+    }
+
+    try {
+      await _cameraController!.startVideoRecording();
+      setState(() {
+        _isRecording = true;
+      });
+    } catch (e) {
+      print('Failed to start recording: $e');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    if (!_isRecording || _cameraController == null) return;
+
+    try {
+      final file = await _cameraController!.stopVideoRecording();
+      setState(() {
+        _isRecording = false;
+      });
+      
+      // 갤러리에 저장 (네이티브 코드로 MediaStore에 등록)
+      try {
+        final result = await _mediaChannel.invokeMethod('saveVideoToGallery', {
+          'videoPath': file.path,
+        });
+        if (result == true) {
+          print('Video saved to gallery: ${file.path}');
+          // 성공 메시지 표시
+          if (mounted) {
+            _showVideoSavedNotification(context);
+          }
+        } else {
+          print('Failed to save video to gallery');
+        }
+      } catch (e) {
+        print('Error saving to gallery: $e');
+        // 저장 실패해도 파일은 저장됨
+        print('Video saved to: ${file.path}');
+      }
+    } catch (e) {
+      print('Failed to stop recording: $e');
+      setState(() {
+        _isRecording = false;
       });
     }
   }
@@ -329,7 +569,50 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     _pageController?.removeListener(_onPageChanged);
     _pageController?.dispose();
     _methodCallSub?.cancel();
+    _stopwatchTimer?.cancel();
+    _cameraPreviewTimer?.cancel();
+    _cameraController?.dispose();
     super.dispose();
+  }
+
+  void _startStopwatch() {
+    if (_isStopwatchRunning) return;
+    setState(() {
+      _isStopwatchRunning = true;
+    });
+    _stopwatchTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _elapsedSeconds = _stopwatchPausedSeconds + timer.tick;
+        });
+      }
+    });
+  }
+
+  void _pauseStopwatch() {
+    if (!_isStopwatchRunning) return;
+    _stopwatchTimer?.cancel();
+    setState(() {
+      _isStopwatchRunning = false;
+      _stopwatchPausedSeconds = _elapsedSeconds;
+    });
+  }
+
+  void _resetStopwatch() {
+    _stopwatchTimer?.cancel();
+    setState(() {
+      _isStopwatchRunning = false;
+      _elapsedSeconds = 0;
+      _stopwatchPausedSeconds = 0;
+    });
+  }
+
+  void _toggleStopwatch() {
+    if (_isStopwatchRunning) {
+      _pauseStopwatch();
+    } else {
+      _startStopwatch();
+    }
   }
 
   Future<void> _onWatchMethodCall(MethodCall call) async {
@@ -596,40 +879,30 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               // Undo 버튼
-                              Builder(
-                                builder: (context) {
-                                  final l10n = AppLocalizations.of(context);
-                                  return IconButton(
-                                    onPressed: _canUndo ? _undo : null,
-                                    tooltip: 'UNDO',
-                                    icon: Icon(
-                                      Icons.undo,
-                                      color: _canUndo
-                                          ? scheme.onSurface.withValues(
-                                              alpha: 0.9,
-                                            )
-                                          : scheme.onSurface.withValues(
-                                              alpha: 0.3,
-                                            ),
-                                    ),
-                                  );
-                                },
+                              IconButton(
+                                onPressed: _canUndo ? _undo : null,
+                                tooltip: 'UNDO',
+                                icon: Icon(
+                                  Icons.undo,
+                                  color: _canUndo
+                                      ? scheme.onSurface.withValues(
+                                          alpha: 0.9,
+                                        )
+                                      : scheme.onSurface.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                ),
                               ),
                               // 리셋 버튼
-                              Builder(
-                                builder: (context) {
-                                  final l10n = AppLocalizations.of(context);
-                                  return IconButton(
-                                    onPressed: _reset,
-                                    tooltip: 'RESET',
-                                    icon: Icon(
-                                      Icons.restart_alt,
-                                      color: scheme.onSurface.withValues(
-                                        alpha: 0.9,
-                                      ),
-                                    ),
-                                  );
-                                },
+                              IconButton(
+                                onPressed: _reset,
+                                tooltip: 'RESET',
+                                icon: Icon(
+                                  Icons.restart_alt,
+                                  color: scheme.onSurface.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                ),
                               ),
                               // 설정 버튼
                               Builder(
@@ -790,6 +1063,38 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                               ),
                             ),
                           ),
+                          // 스톱워치 표시 (우측 하단 플로팅)
+                          Positioned(
+                            right: 16,
+                            bottom: 16,
+                            child: OrientationBuilder(
+                              builder: (context, orientation) {
+                                return _StopwatchDisplay(
+                                  elapsedSeconds: _elapsedSeconds,
+                                  isRunning: _isStopwatchRunning,
+                                  onTap: _toggleStopwatch,
+                                  onLongPress: _resetStopwatch,
+                                  scheme: scheme,
+                                  isPortrait:
+                                      orientation == Orientation.portrait,
+                                );
+                              },
+                            ),
+                          ),
+                          // 카메라 녹화 버튼 (좌측 하단 플로팅)
+                          Positioned(
+                            left: 16,
+                            bottom: 16,
+                            child: _CameraControlButtons(
+                              isCameraInitialized: _isCameraInitialized,
+                              showPreview: _isCameraPreviewVisible,
+                              isRecording: _isRecording,
+                              onShowPreview: _showCameraPreview,
+                              onStartRecording: _startRecording,
+                              onStopRecording: _stopRecording,
+                              scheme: scheme,
+                            ),
+                          ),
                           // 우측 중앙 스와이프 힌트 (문고리)
                           Positioned(
                             right: 8,
@@ -834,6 +1139,16 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
             // 스와이프 가이드 오버레이
             if (_showSwipeGuide)
               _SwipeGuideOverlay(onDismiss: _hideSwipeGuide, scheme: scheme),
+            // 카메라 미리보기 오버레이
+            if (_isCameraPreviewVisible && _cameraController != null)
+              _CameraPreviewOverlay(
+                cameraController: _cameraController!,
+                onDismiss: _hideCameraPreview,
+                onGestureDetected: _resetCameraPreviewTimer,
+                onSwitchCamera: _switchCamera,
+                currentCameraDirection: _currentCameraDirection,
+                scheme: scheme,
+              ),
           ],
         ),
       ),
@@ -1772,6 +2087,489 @@ class _SettingsDialogState extends State<_SettingsDialog> {
           child: Text(l10n.save, style: TextStyle(color: scheme.primary)),
         ),
       ],
+    );
+  }
+}
+
+class _CameraControlButtons extends StatelessWidget {
+  final bool isCameraInitialized;
+  final bool showPreview;
+  final bool isRecording;
+  final VoidCallback onShowPreview;
+  final VoidCallback onStartRecording;
+  final VoidCallback onStopRecording;
+  final ColorScheme scheme;
+
+  const _CameraControlButtons({
+    required this.isCameraInitialized,
+    required this.showPreview,
+    required this.isRecording,
+    required this.onShowPreview,
+    required this.onStartRecording,
+    required this.onStopRecording,
+    required this.scheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isCameraInitialized) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 미리보기 버튼
+        if (!showPreview)
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: scheme.onSurface.withValues(alpha: 0.2),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: onShowPreview,
+              icon: Icon(
+                Icons.videocam,
+                color: scheme.onSurface.withValues(alpha: 0.9),
+                size: 20,
+              ),
+              tooltip: '미리보기',
+            ),
+          ),
+        // 녹화 버튼
+        GestureDetector(
+          onTap: isRecording ? onStopRecording : onStartRecording,
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: isRecording
+                  ? scheme.error
+                  : Colors.black.withValues(alpha: 0.85),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isRecording
+                    ? scheme.error
+                    : scheme.onSurface.withValues(alpha: 0.2),
+                width: isRecording ? 3 : 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              isRecording ? Icons.stop : Icons.fiber_manual_record,
+              color: isRecording ? Colors.white : scheme.error,
+              size: 24,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CameraPreviewOverlay extends StatefulWidget {
+  final CameraController cameraController;
+  final VoidCallback onDismiss;
+  final VoidCallback onGestureDetected;
+  final VoidCallback onSwitchCamera;
+  final CameraLensDirection currentCameraDirection;
+  final ColorScheme scheme;
+
+  const _CameraPreviewOverlay({
+    required this.cameraController,
+    required this.onDismiss,
+    required this.onGestureDetected,
+    required this.onSwitchCamera,
+    required this.currentCameraDirection,
+    required this.scheme,
+  });
+
+  @override
+  State<_CameraPreviewOverlay> createState() => _CameraPreviewOverlayState();
+}
+
+class _CameraPreviewOverlayState extends State<_CameraPreviewOverlay> {
+  double _currentZoomLevel = 1.0;
+  double _minZoomLevel = 1.0;
+  double _maxZoomLevel = 1.0;
+  double _baseScale = 1.0;
+  bool _isZoomSliderVisible = false;
+  Size? _cameraPreviewSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeZoom();
+    _updateCameraPreviewSize();
+    // 카메라 값이 변경될 때마다 비율 업데이트
+    widget.cameraController.addListener(_updateCameraPreviewSize);
+    // 초기화 후 비율 다시 확인
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateCameraPreviewSize();
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.cameraController.removeListener(_updateCameraPreviewSize);
+    super.dispose();
+  }
+
+  void _updateCameraPreviewSize() {
+    try {
+      final cameraValue = widget.cameraController.value;
+      final previewSize = cameraValue.previewSize;
+      
+      if (previewSize != null && previewSize.height > 0) {
+        if (_cameraPreviewSize != previewSize) {
+          setState(() {
+            _cameraPreviewSize = previewSize;
+          });
+        }
+      }
+    } catch (e) {
+      // Error updating camera preview size
+    }
+  }
+
+  Future<void> _initializeZoom() async {
+    try {
+      _minZoomLevel = await widget.cameraController.getMinZoomLevel();
+      _maxZoomLevel = await widget.cameraController.getMaxZoomLevel();
+      // 초기 줌 레벨은 최소값으로 설정
+      _currentZoomLevel = _minZoomLevel;
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Failed to get zoom levels: $e');
+      // 기본값 설정
+      _minZoomLevel = 1.0;
+      _maxZoomLevel = 1.0;
+      _currentZoomLevel = 1.0;
+    }
+  }
+
+  Future<void> _setZoomLevel(double zoom) async {
+    try {
+      final clampedZoom = zoom.clamp(_minZoomLevel, _maxZoomLevel);
+      await widget.cameraController.setZoomLevel(clampedZoom);
+      if (mounted) {
+        setState(() {
+          _currentZoomLevel = clampedZoom;
+        });
+      }
+    } catch (e) {
+      print('Failed to set zoom level: $e');
+    }
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _baseScale = _currentZoomLevel;
+    // 제스처 시작 시 타이머 초기화
+    widget.onGestureDetected();
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    final newZoom = _baseScale * details.scale;
+    _setZoomLevel(newZoom);
+    // 제스처 업데이트 시 타이머 초기화
+    widget.onGestureDetected();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onDismiss,
+      behavior: HitTestBehavior.translucent,
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.7),
+        child: SafeArea(
+          child: Center(
+            child: GestureDetector(
+              onTap: () {
+                // 미리보기 영역 터치 시 줌 슬라이더 토글 및 타이머 초기화
+                widget.onGestureDetected();
+                setState(() {
+                  _isZoomSliderVisible = !_isZoomSliderVisible;
+                });
+              },
+              onScaleStart: _handleScaleStart,
+              onScaleUpdate: _handleScaleUpdate,
+              child: OrientationBuilder(
+                builder: (context, orientation) {
+                  // 카메라의 실제 previewSize 가져오기
+                  final cameraValue = widget.cameraController.value;
+                  final previewSize = cameraValue.previewSize;
+                  
+                  double aspectRatio = 16 / 9; // 기본값
+                  if (previewSize != null && previewSize.height > 0) {
+                    aspectRatio = previewSize.width / previewSize.height;
+                  }
+                  
+                  // 화면 크기에 맞춰 너비 기준으로 계산
+                  final screenSize = MediaQuery.of(context).size;
+                  final isPortrait = orientation == Orientation.portrait;
+                  
+                  // 세로 모드에서는 카메라가 회전되므로 비율을 반대로 적용
+                  final displayAspectRatio = isPortrait ? (1 / aspectRatio) : aspectRatio;
+                  
+                  // 너비를 먼저 정하고 (화면 너비의 80%)
+                  final containerWidth = screenSize.width * 0.8;
+                  
+                  // 카메라 비율에 맞춰 높이 자동 계산 (세로 모드에서는 반대 비율 사용)
+                  final containerHeight = containerWidth / displayAspectRatio;
+                  
+                  // 화면 높이를 초과하지 않도록 제한 (최대 화면 높이의 80%)
+                  final maxHeight = screenSize.height * 0.8;
+                  
+                  final finalWidth = containerHeight > maxHeight 
+                      ? maxHeight * displayAspectRatio  // 높이가 너무 크면 높이 기준으로 너비 조정
+                      : containerWidth;
+                  final finalHeight = containerHeight > maxHeight 
+                      ? maxHeight 
+                      : containerHeight;
+                  
+                  return Container(
+                    width: finalWidth,
+                    height: finalHeight,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: widget.scheme.onSurface.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        // 카메라 미리보기 (카메라 비율 유지)
+                        Positioned.fill(
+                          child: AspectRatio(
+                            aspectRatio: aspectRatio,
+                            child: CameraPreview(widget.cameraController),
+                          ),
+                        ),
+                    // 닫기 버튼
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: widget.onDismiss,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 카메라 전환 버튼
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.onGestureDetected();
+                          widget.onSwitchCamera();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            widget.currentCameraDirection == CameraLensDirection.front
+                                ? Icons.camera_rear
+                                : Icons.camera_front,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 줌 슬라이더
+                    if (_isZoomSliderVisible || _maxZoomLevel > _minZoomLevel)
+                      Positioned(
+                        right: 16,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: Container(
+                            width: 40,
+                            height: 200,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: RotatedBox(
+                              quarterTurns: 3,
+                              child: Slider(
+                                value: _currentZoomLevel,
+                                min: _minZoomLevel,
+                                max: _maxZoomLevel,
+                                onChanged: (value) {
+                                  _setZoomLevel(value);
+                                },
+                                activeColor: widget.scheme.primary,
+                                inactiveColor: widget.scheme.onSurface.withValues(alpha: 0.3),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    // 줌 레벨 표시
+                    if (_isZoomSliderVisible)
+                      Positioned(
+                        bottom: 16,
+                        left: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${_currentZoomLevel.toStringAsFixed(1)}x',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StopwatchDisplay extends StatelessWidget {
+  final int elapsedSeconds;
+  final bool isRunning;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final ColorScheme scheme;
+  final bool isPortrait;
+
+  const _StopwatchDisplay({
+    required this.elapsedSeconds,
+    required this.isRunning,
+    required this.onTap,
+    required this.onLongPress,
+    required this.scheme,
+    required this.isPortrait,
+  });
+
+  String _formatTime(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    } else {
+      return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isRunning
+                ? scheme.primary.withValues(alpha: 0.5)
+                : scheme.onSurface.withValues(alpha: 0.2),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 아이콘
+            Icon(
+              isRunning ? Icons.pause : Icons.play_arrow,
+              color: isRunning
+                  ? scheme.primary
+                  : scheme.onSurface.withValues(alpha: 0.7),
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            // 시간 표시
+            Text(
+              _formatTime(elapsedSeconds),
+              style: TextStyle(
+                color: isRunning
+                    ? scheme.primary
+                    : scheme.onSurface.withValues(alpha: 0.9),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                fontFeatures: const [
+                  FontFeature.tabularFigures(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
