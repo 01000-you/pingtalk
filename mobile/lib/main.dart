@@ -12,6 +12,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'l10n/app_localizations.dart';
 import 'splash_screen.dart';
 
+// 스와이프 민감도를 낮춘 커스텀 ScrollPhysics
+class _LessSensitivePageScrollPhysics extends PageScrollPhysics {
+  const _LessSensitivePageScrollPhysics({super.parent});
+
+  @override
+  _LessSensitivePageScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return _LessSensitivePageScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  double get dragStartDistanceMotionThreshold => 10.0; // 기본값 3.0보다 높게 설정
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -249,7 +262,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       // 카메라 권한 확인
       final cameraStatus = await Permission.camera.status;
       final microphoneStatus = await Permission.microphone.status;
-      
+
       // Android 13+ 미디어 권한 확인
       final storageStatus = await Permission.storage.status;
       final photosStatus = await Permission.photos.status;
@@ -329,7 +342,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
   void _showVideoSavedNotification(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     const baseBg = Color(0xFF0B1220);
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Container(
@@ -437,7 +450,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       setState(() {
         _isRecording = false;
       });
-      
+
       // 갤러리에 저장 (네이티브 코드로 MediaStore에 등록)
       try {
         final result = await _mediaChannel.invokeMethod('saveVideoToGallery', {
@@ -849,6 +862,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
           children: [
             PageView(
               controller: _pageController ?? PageController(initialPage: 0),
+              physics: const _LessSensitivePageScrollPhysics(),
               children: [
                 // 메인 스코어 화면
                 Column(
@@ -885,12 +899,8 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                                 icon: Icon(
                                   Icons.undo,
                                   color: _canUndo
-                                      ? scheme.onSurface.withValues(
-                                          alpha: 0.9,
-                                        )
-                                      : scheme.onSurface.withValues(
-                                          alpha: 0.3,
-                                        ),
+                                      ? scheme.onSurface.withValues(alpha: 0.9)
+                                      : scheme.onSurface.withValues(alpha: 0.3),
                                 ),
                               ),
                               // 리셋 버튼
@@ -2237,7 +2247,7 @@ class _CameraPreviewOverlayState extends State<_CameraPreviewOverlay> {
     try {
       final cameraValue = widget.cameraController.value;
       final previewSize = cameraValue.previewSize;
-      
+
       if (previewSize != null && previewSize.height > 0) {
         if (_cameraPreviewSize != previewSize) {
           setState(() {
@@ -2319,35 +2329,38 @@ class _CameraPreviewOverlayState extends State<_CameraPreviewOverlay> {
                   // 카메라의 실제 previewSize 가져오기
                   final cameraValue = widget.cameraController.value;
                   final previewSize = cameraValue.previewSize;
-                  
+
                   double aspectRatio = 16 / 9; // 기본값
                   if (previewSize != null && previewSize.height > 0) {
                     aspectRatio = previewSize.width / previewSize.height;
                   }
-                  
+
                   // 화면 크기에 맞춰 너비 기준으로 계산
                   final screenSize = MediaQuery.of(context).size;
                   final isPortrait = orientation == Orientation.portrait;
-                  
+
                   // 세로 모드에서는 카메라가 회전되므로 비율을 반대로 적용
-                  final displayAspectRatio = isPortrait ? (1 / aspectRatio) : aspectRatio;
-                  
+                  final displayAspectRatio = isPortrait
+                      ? (1 / aspectRatio)
+                      : aspectRatio;
+
                   // 너비를 먼저 정하고 (화면 너비의 80%)
                   final containerWidth = screenSize.width * 0.8;
-                  
+
                   // 카메라 비율에 맞춰 높이 자동 계산 (세로 모드에서는 반대 비율 사용)
                   final containerHeight = containerWidth / displayAspectRatio;
-                  
+
                   // 화면 높이를 초과하지 않도록 제한 (최대 화면 높이의 80%)
                   final maxHeight = screenSize.height * 0.8;
-                  
-                  final finalWidth = containerHeight > maxHeight 
-                      ? maxHeight * displayAspectRatio  // 높이가 너무 크면 높이 기준으로 너비 조정
+
+                  final finalWidth = containerHeight > maxHeight
+                      ? maxHeight *
+                            displayAspectRatio // 높이가 너무 크면 높이 기준으로 너비 조정
                       : containerWidth;
-                  final finalHeight = containerHeight > maxHeight 
-                      ? maxHeight 
+                  final finalHeight = containerHeight > maxHeight
+                      ? maxHeight
                       : containerHeight;
-                  
+
                   return Container(
                     width: finalWidth,
                     height: finalHeight,
@@ -2375,106 +2388,111 @@ class _CameraPreviewOverlayState extends State<_CameraPreviewOverlay> {
                             child: CameraPreview(widget.cameraController),
                           ),
                         ),
-                    // 닫기 버튼
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: widget.onDismiss,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // 카메라 전환 버튼
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: GestureDetector(
-                        onTap: () {
-                          widget.onGestureDetected();
-                          widget.onSwitchCamera();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            widget.currentCameraDirection == CameraLensDirection.front
-                                ? Icons.camera_rear
-                                : Icons.camera_front,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // 줌 슬라이더
-                    if (_isZoomSliderVisible || _maxZoomLevel > _minZoomLevel)
-                      Positioned(
-                        right: 16,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: Container(
-                            width: 40,
-                            height: 200,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: RotatedBox(
-                              quarterTurns: 3,
-                              child: Slider(
-                                value: _currentZoomLevel,
-                                min: _minZoomLevel,
-                                max: _maxZoomLevel,
-                                onChanged: (value) {
-                                  _setZoomLevel(value);
-                                },
-                                activeColor: widget.scheme.primary,
-                                inactiveColor: widget.scheme.onSurface.withValues(alpha: 0.3),
+                        // 닫기 버튼
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: widget.onDismiss,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 20,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    // 줌 레벨 표시
-                    if (_isZoomSliderVisible)
-                      Positioned(
-                        bottom: 16,
-                        left: 16,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${_currentZoomLevel.toStringAsFixed(1)}x',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                        // 카메라 전환 버튼
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: GestureDetector(
+                            onTap: () {
+                              widget.onGestureDetected();
+                              widget.onSwitchCamera();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                widget.currentCameraDirection ==
+                                        CameraLensDirection.front
+                                    ? Icons.camera_rear
+                                    : Icons.camera_front,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                        // 줌 슬라이더
+                        if (_isZoomSliderVisible ||
+                            _maxZoomLevel > _minZoomLevel)
+                          Positioned(
+                            right: 16,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(
+                              child: Container(
+                                width: 40,
+                                height: 200,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.6),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: RotatedBox(
+                                  quarterTurns: 3,
+                                  child: Slider(
+                                    value: _currentZoomLevel,
+                                    min: _minZoomLevel,
+                                    max: _maxZoomLevel,
+                                    onChanged: (value) {
+                                      _setZoomLevel(value);
+                                    },
+                                    activeColor: widget.scheme.primary,
+                                    inactiveColor: widget.scheme.onSurface
+                                        .withValues(alpha: 0.3),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        // 줌 레벨 표시
+                        if (_isZoomSliderVisible)
+                          Positioned(
+                            bottom: 16,
+                            left: 16,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${_currentZoomLevel.toStringAsFixed(1)}x',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   );
@@ -2562,9 +2580,7 @@ class _StopwatchDisplay extends StatelessWidget {
                     : scheme.onSurface.withValues(alpha: 0.9),
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                fontFeatures: const [
-                  FontFeature.tabularFigures(),
-                ],
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ],
