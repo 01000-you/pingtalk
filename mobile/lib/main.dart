@@ -196,6 +196,21 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
   bool _isRecording = false;
   CameraLensDirection _currentCameraDirection = CameraLensDirection.front;
 
+  // 좌우 배치에서 블루/레드 카드 위치 (true: 블루가 왼쪽, false: 레드가 왼쪽)
+  // 위아래 배치일 때는 사용되지 않음
+  bool _isBlueOnLeft = true;
+
+  // 점수판이 좌우 배치인지 확인하는 헬퍼 함수
+  // OrientationBuilder의 orientation을 사용하거나, 없으면 MediaQuery의 orientation 사용
+  bool _isRowLayout(BuildContext context, Orientation? orientation) {
+    final screenSize = MediaQuery.of(context).size;
+    // orientation이 제공되면 사용, 없으면 MediaQuery에서 가져옴
+    final actualOrientation = orientation ?? MediaQuery.of(context).orientation;
+    final isPortrait = actualOrientation == Orientation.portrait;
+    // 가로 모드이거나 세로 모드에서도 화면이 넓으면 좌우 배치
+    return !isPortrait || screenSize.width > screenSize.height * 0.7;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -204,8 +219,8 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     // 초기 상태 설정
     _state = MatchState(
       matchId: 'local',
-      playerAName: 'Home',
-      playerBName: 'Away',
+      playerAName: 'Blue',
+      playerBName: 'Red',
       scoreA: 0,
       scoreB: 0,
       version: 0,
@@ -685,6 +700,10 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
 
   void _applyCommand(ScoreCommand command, {required UpdatedBy appliedBy}) {
     if (_state == null) return;
+
+    // 게임 종료 감지를 위해 이전 세트 스코어 길이 저장
+    final previousSetScoresLength = _state!.setScoresA.length;
+
     final next = ScoreReducer.apply(
       current: _state!,
       command: command,
@@ -698,6 +717,18 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     // 오래된 명령 ID는 정리 (메모리 관리)
     if (_processedCommandIds.length > 1000) {
       _processedCommandIds.remove(_processedCommandIds.first);
+    }
+
+    // 게임 종료 감지: 세트 스코어 길이가 변경되었는지 확인
+    final gameEnded = next.setScoresA.length > previousSetScoresLength;
+
+    // 점수 카드가 좌우로 배치될 때만 게임 종료 시 카드 위치 교체
+    if (gameEnded && mounted) {
+      // 점수판이 실제로 좌우 배치인지 확인
+      // _isRowLayout 함수를 사용하여 점수판 렌더링 로직과 동일하게 확인
+      if (_isRowLayout(context, null)) {
+        _isBlueOnLeft = !_isBlueOnLeft;
+      }
     }
 
     setState(() {
@@ -953,71 +984,51 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                         children: [
                           OrientationBuilder(
                             builder: (context, orientation) {
-                              final isPortrait =
-                                  orientation == Orientation.portrait;
+                              // 점수판이 실제로 좌우 배치인지 확인
+                              final useRowLayout = _isRowLayout(
+                                context,
+                                orientation,
+                              );
 
-                              if (isPortrait) {
-                                // 세로 모드: 상하 배치
-                                return Column(
-                                  children: [
-                                    Expanded(
-                                      child: Builder(
-                                        builder: (context) {
-                                          final l10n = AppLocalizations.of(
-                                            context,
-                                          );
-                                          return _ScoreHalf(
-                                            background: homeBg,
-                                            accent: homeAccent,
-                                            label: l10n?.home ?? 'HOME',
-                                            score: _state!.scoreA,
-                                            onInc: () => _inc(ScoreSide.home),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    Container(
-                                      height: 1,
-                                      color: scheme.onSurface.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Builder(
-                                        builder: (context) {
-                                          final l10n = AppLocalizations.of(
-                                            context,
-                                          );
-                                          return _ScoreHalf(
-                                            background: awayBg,
-                                            accent: awayAccent,
-                                            label: l10n?.away ?? 'AWAY',
-                                            score: _state!.scoreB,
-                                            onInc: () => _inc(ScoreSide.away),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              } else {
-                                // 가로 모드: 좌우 배치
+                              if (useRowLayout) {
+                                // 좌우 배치 (게임 종료 시 위치 교체)
+                                final leftBg = _isBlueOnLeft ? homeBg : awayBg;
+                                final leftAccent = _isBlueOnLeft
+                                    ? homeAccent
+                                    : awayAccent;
+                                final leftLabel = _isBlueOnLeft
+                                    ? 'Blue'
+                                    : 'Red';
+                                final leftScore = _isBlueOnLeft
+                                    ? _state!.scoreA
+                                    : _state!.scoreB;
+                                final leftOnInc = _isBlueOnLeft
+                                    ? () => _inc(ScoreSide.home)
+                                    : () => _inc(ScoreSide.away);
+
+                                final rightBg = _isBlueOnLeft ? awayBg : homeBg;
+                                final rightAccent = _isBlueOnLeft
+                                    ? awayAccent
+                                    : homeAccent;
+                                final rightLabel = _isBlueOnLeft
+                                    ? 'Red'
+                                    : 'Blue';
+                                final rightScore = _isBlueOnLeft
+                                    ? _state!.scoreB
+                                    : _state!.scoreA;
+                                final rightOnInc = _isBlueOnLeft
+                                    ? () => _inc(ScoreSide.away)
+                                    : () => _inc(ScoreSide.home);
+
                                 return Row(
                                   children: [
                                     Expanded(
-                                      child: Builder(
-                                        builder: (context) {
-                                          final l10n = AppLocalizations.of(
-                                            context,
-                                          );
-                                          return _ScoreHalf(
-                                            background: homeBg,
-                                            accent: homeAccent,
-                                            label: l10n?.home ?? 'HOME',
-                                            score: _state!.scoreA,
-                                            onInc: () => _inc(ScoreSide.home),
-                                          );
-                                        },
+                                      child: _ScoreHalf(
+                                        background: leftBg,
+                                        accent: leftAccent,
+                                        label: leftLabel,
+                                        score: leftScore,
+                                        onInc: leftOnInc,
                                       ),
                                     ),
                                     Container(
@@ -1027,19 +1038,42 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                                       ),
                                     ),
                                     Expanded(
-                                      child: Builder(
-                                        builder: (context) {
-                                          final l10n = AppLocalizations.of(
-                                            context,
-                                          );
-                                          return _ScoreHalf(
-                                            background: awayBg,
-                                            accent: awayAccent,
-                                            label: l10n?.away ?? 'AWAY',
-                                            score: _state!.scoreB,
-                                            onInc: () => _inc(ScoreSide.away),
-                                          );
-                                        },
+                                      child: _ScoreHalf(
+                                        background: rightBg,
+                                        accent: rightAccent,
+                                        label: rightLabel,
+                                        score: rightScore,
+                                        onInc: rightOnInc,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              } else {
+                                // 위아래 배치 (위치 교체 안 함)
+                                return Column(
+                                  children: [
+                                    Expanded(
+                                      child: _ScoreHalf(
+                                        background: homeBg,
+                                        accent: homeAccent,
+                                        label: 'Blue',
+                                        score: _state!.scoreA,
+                                        onInc: () => _inc(ScoreSide.home),
+                                      ),
+                                    ),
+                                    Container(
+                                      height: 1,
+                                      color: scheme.onSurface.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _ScoreHalf(
+                                        background: awayBg,
+                                        accent: awayAccent,
+                                        label: 'Red',
+                                        score: _state!.scoreB,
+                                        onInc: () => _inc(ScoreSide.away),
                                       ),
                                     ),
                                   ],
@@ -1052,6 +1086,14 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                             child: Center(
                               child: OrientationBuilder(
                                 builder: (context, orientation) {
+                                  // 점수판이 실제로 좌우 배치인지 확인
+                                  final useRowLayout = _isRowLayout(
+                                    context,
+                                    orientation,
+                                  );
+                                  final isPortrait =
+                                      orientation == Orientation.portrait;
+
                                   return _SetScoreDisplay(
                                     homeScore: _state!.setScoresA.fold<int>(
                                       0,
@@ -1066,8 +1108,9 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                                     homeAccent: homeAccent,
                                     awayAccent: awayAccent,
                                     scheme: scheme,
-                                    isPortrait:
-                                        orientation == Orientation.portrait,
+                                    isPortrait: isPortrait,
+                                    useRowLayout: useRowLayout,
+                                    isBlueOnLeft: _isBlueOnLeft,
                                   );
                                 },
                               ),
@@ -1084,6 +1127,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                                   isRunning: _isStopwatchRunning,
                                   onTap: _toggleStopwatch,
                                   onLongPress: _resetStopwatch,
+                                  onReset: _resetStopwatch,
                                   scheme: scheme,
                                   isPortrait:
                                       orientation == Orientation.portrait,
@@ -1301,6 +1345,8 @@ class _SetScoreDisplay extends StatelessWidget {
   final Color awayAccent;
   final ColorScheme scheme;
   final bool isPortrait;
+  final bool useRowLayout;
+  final bool isBlueOnLeft;
 
   const _SetScoreDisplay({
     required this.homeScore,
@@ -1311,6 +1357,8 @@ class _SetScoreDisplay extends StatelessWidget {
     required this.awayAccent,
     required this.scheme,
     required this.isPortrait,
+    required this.useRowLayout,
+    required this.isBlueOnLeft,
   });
 
   Widget _buildScoreCell({
@@ -1400,9 +1448,47 @@ class _SetScoreDisplay extends StatelessWidget {
                 ],
               ),
             )
+          : useRowLayout
+          ? Row(
+              children: [
+                // 좌우 배치: isBlueOnLeft에 따라 블루/레드 위치 결정
+                Expanded(
+                  child: _buildScoreCell(
+                    score: isBlueOnLeft ? homeScore : awayScore,
+                    bgColor: isBlueOnLeft ? homeBg : awayBg,
+                    accentColor: isBlueOnLeft ? homeAccent : awayAccent,
+                    borderRadius: const [
+                      Radius.circular(12),
+                      Radius.circular(0),
+                      Radius.circular(0),
+                      Radius.circular(12),
+                    ],
+                  ),
+                ),
+                // 구분선
+                Container(
+                  width: 1,
+                  color: scheme.onSurface.withValues(alpha: 0.12),
+                ),
+                // 우측 세트 스코어
+                Expanded(
+                  child: _buildScoreCell(
+                    score: isBlueOnLeft ? awayScore : homeScore,
+                    bgColor: isBlueOnLeft ? awayBg : homeBg,
+                    accentColor: isBlueOnLeft ? awayAccent : homeAccent,
+                    borderRadius: const [
+                      Radius.circular(0),
+                      Radius.circular(12),
+                      Radius.circular(12),
+                      Radius.circular(0),
+                    ],
+                  ),
+                ),
+              ],
+            )
           : Row(
               children: [
-                // HOME 세트 스코어
+                // 위아래 배치일 때는 기본 순서 유지
                 Expanded(
                   child: _buildScoreCell(
                     score: homeScore,
@@ -1626,27 +1712,17 @@ class _SetHistoryPage extends StatelessWidget {
                                     );
                                   },
                                 ),
-                                Builder(
-                                  builder: (context) {
-                                    final l10n = AppLocalizations.of(context);
-                                    return _buildTableCell(
-                                      l10n?.home ?? 'HOME',
-                                      scheme,
-                                      isHeader: true,
-                                      accent: homeAccent,
-                                    );
-                                  },
+                                _buildTableCell(
+                                  'Blue',
+                                  scheme,
+                                  isHeader: true,
+                                  accent: homeAccent,
                                 ),
-                                Builder(
-                                  builder: (context) {
-                                    final l10n = AppLocalizations.of(context);
-                                    return _buildTableCell(
-                                      l10n?.away ?? 'AWAY',
-                                      scheme,
-                                      isHeader: true,
-                                      accent: awayAccent,
-                                    );
-                                  },
+                                _buildTableCell(
+                                  'Red',
+                                  scheme,
+                                  isHeader: true,
+                                  accent: awayAccent,
                                 ),
                                 Builder(
                                   builder: (context) {
@@ -1663,9 +1739,9 @@ class _SetHistoryPage extends StatelessWidget {
                             // 데이터 행
                             ...history.map((setScore) {
                               final winner = setScore.scoreA > setScore.scoreB
-                                  ? 'HOME'
+                                  ? 'Blue'
                                   : setScore.scoreB > setScore.scoreA
-                                  ? 'AWAY'
+                                  ? 'Red'
                                   : '-';
                               final winnerColor =
                                   setScore.scoreA > setScore.scoreB
@@ -2511,6 +2587,7 @@ class _StopwatchDisplay extends StatelessWidget {
   final bool isRunning;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final VoidCallback onReset;
   final ColorScheme scheme;
   final bool isPortrait;
 
@@ -2519,6 +2596,7 @@ class _StopwatchDisplay extends StatelessWidget {
     required this.isRunning,
     required this.onTap,
     required this.onLongPress,
+    required this.onReset,
     required this.scheme,
     required this.isPortrait,
   });
@@ -2583,6 +2661,25 @@ class _StopwatchDisplay extends StatelessWidget {
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
+            // 초기화 버튼 (시간이 0보다 크고 실행 중이 아닐 때만 표시)
+            if (elapsedSeconds > 0 && !isRunning) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: onReset,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: scheme.onSurface.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    Icons.refresh,
+                    size: 14,
+                    color: scheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
