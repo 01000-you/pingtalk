@@ -3,6 +3,12 @@
 
     <!-- Wear OS 기기임을 명시 -->
     <uses-feature android:name="android.hardware.type.watch" />
+    
+    <!-- 음성인식 권한 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 진동 권한 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
