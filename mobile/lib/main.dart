@@ -1787,6 +1787,86 @@ class _SetHistoryPage extends StatelessWidget {
                   },
                 ),
               ),
+              // 하단 세트 스코어 요약 표시
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.onSurface.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: scheme.onSurface.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    // 총 세트 스코어 라벨
+                    Text(
+                      '총 세트 스코어',
+                      style: TextStyle(
+                        color: scheme.onSurface.withValues(alpha: 0.7),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Blue 총점
+                    Row(
+                      children: [
+                        Text(
+                          'Blue',
+                          style: TextStyle(
+                            color: homeAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${state.setScoresA.fold<int>(0, (sum, score) => sum + score)}',
+                          style: TextStyle(
+                            color: homeAccent,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      width: 1,
+                      height: 20,
+                      color: scheme.onSurface.withValues(alpha: 0.2),
+                    ),
+                    // Red 총점
+                    Row(
+                      children: [
+                        Text(
+                          'Red',
+                          style: TextStyle(
+                            color: awayAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${state.setScoresB.fold<int>(0, (sum, score) => sum + score)}',
+                          style: TextStyle(
+                            color: awayAccent,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
           // 좌측 중앙 스와이프 힌트 (문고리)
