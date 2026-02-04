@@ -9,6 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pingtalk_core/pingtalk_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'l10n/app_localizations.dart';
 import 'splash_screen.dart';
 
@@ -229,6 +230,8 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     );
     _addToHistory(_state!);
     _initialize();
+    // 점수판 화면에서 화면이 꺼지지 않도록 설정
+    WakelockPlus.enable();
   }
 
   void _onPageChanged() {
@@ -600,6 +603,8 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     _stopwatchTimer?.cancel();
     _cameraPreviewTimer?.cancel();
     _cameraController?.dispose();
+    // 화면 켜짐 유지 해제
+    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -1319,7 +1324,7 @@ class _ScoreHalf extends StatelessWidget {
                       '$score',
                       style: TextStyle(
                         color: onBg.withValues(alpha: 0.96),
-                        fontSize: 280,
+                        fontSize: 260,
                         fontWeight: FontWeight.w900,
                         height: 0.95,
                         letterSpacing: -3,
@@ -1382,7 +1387,7 @@ class _SetScoreDisplay extends StatelessWidget {
           '$score',
           style: TextStyle(
             color: accentColor,
-            fontSize: 32,
+            fontSize: 40,
             fontWeight: FontWeight.w900,
             height: 0.95,
           ),
@@ -1394,10 +1399,10 @@ class _SetScoreDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: isPortrait ? null : 100,
-      height: isPortrait ? 103 : 80,
+      width: isPortrait ? null : 110,
+      height: isPortrait ? 115 : 90,
       constraints: isPortrait
-          ? const BoxConstraints(minWidth: 60, maxWidth: 100)
+          ? const BoxConstraints(minWidth: 70, maxWidth: 110)
           : null,
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.85),

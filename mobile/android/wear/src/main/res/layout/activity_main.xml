@@ -56,7 +56,7 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
             android:background="#1A1A1A"
-            android:layout_marginBottom="6dp" />
+            android:layout_marginBottom="1dp" />
 
         <LinearLayout
             android:id="@+id/layoutHomeAway"
@@ -64,7 +64,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="horizontal"
-            android:paddingBottom="6dp">
+            android:layout_marginBottom="1dp">
 
             <Button
                 android:id="@+id/btnHome"
@@ -73,7 +73,11 @@
                 android:layout_weight="1"
                 android:text="HOME"
                 android:textSize="12sp"
-                android:minHeight="72dp" />
+                android:minHeight="72dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:paddingLeft="0dp"
+                android:paddingRight="0dp" />
 
             <Button
                 android:id="@+id/btnAway"
@@ -82,23 +86,18 @@
                 android:layout_weight="1"
                 android:text="AWAY"
                 android:textSize="12sp"
-                android:minHeight="72dp" />
+                android:minHeight="72dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:paddingLeft="0dp"
+                android:paddingRight="0dp" />
         </LinearLayout>
-
-        <Button
-            android:id="@+id/btnVoice"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="VOICE"
-            android:textSize="14sp"
-            android:minHeight="40dp"
-            android:layout_marginBottom="6dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginTop="4dp">
+            android:layout_marginBottom="0dp">
             
             <Button
                 android:id="@+id/btnReset"
@@ -108,7 +107,11 @@
                 android:layout_marginEnd="4dp"
                 android:text="RESET"
                 android:textSize="14sp"
-                android:minHeight="40dp" />
+                android:minHeight="40dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:paddingLeft="0dp"
+                android:paddingRight="0dp" />
             
             <Button
                 android:id="@+id/btnUndo"
@@ -118,8 +121,38 @@
                 android:layout_marginStart="4dp"
                 android:text="UNDO"
                 android:textSize="14sp"
-                android:minHeight="40dp" />
+                android:minHeight="40dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:paddingLeft="0dp"
+                android:paddingRight="0dp" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btnVoice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="VOICE"
+            android:textSize="14sp"
+            android:minHeight="40dp"
+            android:layout_marginTop="0dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:paddingLeft="0dp"
+            android:paddingRight="0dp" />
+
+        <Button
+            android:id="@+id/btnAlwaysOn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ALWAYS ON"
+            android:textSize="12sp"
+            android:minHeight="36dp"
+            android:layout_marginTop="2dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:paddingLeft="0dp"
+            android:paddingRight="0dp" />
 
     </LinearLayout>
 
