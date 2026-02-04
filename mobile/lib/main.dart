@@ -163,6 +163,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
   static const String _prefsKeyState = 'match_state';
   static const String _prefsKeySwipeGuideShown = 'swipe_guide_shown';
   static const String _prefsKeyLocale = 'app_locale';
+  static const String _prefsKeyAutoSwapEnabled = 'auto_swap_enabled';
   // static const String _prefsKeyHistory = 'match_history'; // 향후 경기 기록 기능용
   static const int _maxHistorySize = 100;
 
@@ -200,6 +201,9 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
   // 좌우 배치에서 블루/레드 카드 위치 (true: 블루가 왼쪽, false: 레드가 왼쪽)
   // 위아래 배치일 때는 사용되지 않음
   bool _isBlueOnLeft = true;
+
+  // 게임 종료 시 자동 위치 교체 기능 활성화 여부
+  bool _autoSwapEnabled = true;
 
   // 점수판이 좌우 배치인지 확인하는 헬퍼 함수
   // OrientationBuilder의 orientation을 사용하거나, 없으면 MediaQuery의 orientation 사용
@@ -258,6 +262,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       _prefs = await SharedPreferences.getInstance();
       await _loadState();
       await _loadLocale();
+      await _loadAutoSwapSetting();
     } catch (e) {
       // SharedPreferences 초기화 실패 시 기본값 사용
       // (플러그인이 아직 준비되지 않았을 수 있음)
@@ -271,6 +276,26 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       setState(() {
         _isInitialized = true;
         _showSwipeGuide = !guideShown;
+      });
+    }
+  }
+
+  Future<void> _loadAutoSwapSetting() async {
+    if (_prefs == null) return;
+    final enabled = _prefs!.getBool(_prefsKeyAutoSwapEnabled);
+    if (mounted) {
+      setState(() {
+        _autoSwapEnabled = enabled ?? true; // 기본값은 true
+      });
+    }
+  }
+
+  Future<void> _saveAutoSwapSetting(bool enabled) async {
+    if (_prefs == null) return;
+    await _prefs!.setBool(_prefsKeyAutoSwapEnabled, enabled);
+    if (mounted) {
+      setState(() {
+        _autoSwapEnabled = enabled;
       });
     }
   }
@@ -727,8 +752,8 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
     // 게임 종료 감지: 세트 스코어 길이가 변경되었는지 확인
     final gameEnded = next.setScoresA.length > previousSetScoresLength;
 
-    // 점수 카드가 좌우로 배치될 때만 게임 종료 시 카드 위치 교체
-    if (gameEnded && mounted) {
+    // 점수 카드가 좌우로 배치될 때만 게임 종료 시 카드 위치 교체 (설정이 활성화된 경우만)
+    if (gameEnded && mounted && _autoSwapEnabled) {
       // 점수판이 실제로 좌우 배치인지 확인
       // _isRowLayout 함수를 사용하여 점수판 렌더링 로직과 동일하게 확인
       if (_isRowLayout(context, null)) {
@@ -785,6 +810,13 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
 
   bool get _canUndo => _stateHistory.length > 1;
 
+  void _showGuideDialog(BuildContext context, ColorScheme scheme) {
+    showDialog(
+      context: context,
+      builder: (context) => _GuideDialog(scheme: scheme),
+    );
+  }
+
   void _showSettingsDialog(BuildContext context) {
     if (_state == null) return;
 
@@ -793,6 +825,7 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
       builder: (context) => _SettingsDialog(
         rules: _state!.rules,
         currentLocale: _currentLocale.languageCode,
+        autoSwapEnabled: _autoSwapEnabled,
         onSave: (rules) {
           setState(() {
             _state = _state!.copyWith(rules: rules);
@@ -802,6 +835,9 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
         },
         onLocaleChanged: (localeCode) {
           unawaited(_saveLocale(localeCode));
+        },
+        onAutoSwapChanged: (enabled) {
+          unawaited(_saveAutoSwapSetting(enabled));
         },
       ),
     );
@@ -1138,6 +1174,41 @@ class _ScoreboardPageState extends State<ScoreboardPage> {
                                       orientation == Orientation.portrait,
                                 );
                               },
+                            ),
+                          ),
+                          // 가이드 버튼 (우측 하단 플로팅, 타이머 위)
+                          Positioned(
+                            right: 16,
+                            bottom: 80,
+                            child: GestureDetector(
+                              onTap: () => _showGuideDialog(context, scheme),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.85),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: scheme.onSurface.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.help_outline,
+                                  color: scheme.primary,
+                                  size: 24,
+                                ),
+                              ),
                             ),
                           ),
                           // 카메라 녹화 버튼 (좌측 하단 플로팅)
@@ -2071,14 +2142,18 @@ class _TouchZone extends StatelessWidget {
 class _SettingsDialog extends StatefulWidget {
   final GameRules rules;
   final String currentLocale;
+  final bool autoSwapEnabled;
   final void Function(GameRules) onSave;
   final void Function(String) onLocaleChanged;
+  final void Function(bool) onAutoSwapChanged;
 
   const _SettingsDialog({
     required this.rules,
     required this.currentLocale,
+    required this.autoSwapEnabled,
     required this.onSave,
     required this.onLocaleChanged,
+    required this.onAutoSwapChanged,
   });
 
   @override
@@ -2089,6 +2164,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   late TextEditingController _maxScoreController;
   late bool _deuceEnabled;
   late TextEditingController _deuceMarginController;
+  late bool _autoSwapEnabled;
 
   @override
   void initState() {
@@ -2100,6 +2176,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     _deuceMarginController = TextEditingController(
       text: widget.rules.deuceMargin.toString(),
     );
+    _autoSwapEnabled = widget.autoSwapEnabled;
   }
 
   @override
@@ -2242,6 +2319,36 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 ),
               ),
             ],
+            const SizedBox(height: 24),
+            // 좌우 반전 설정
+            Text(
+              '화면 설정',
+              style: TextStyle(
+                color: scheme.onSurface.withValues(alpha: 0.8),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Checkbox(
+                  value: _autoSwapEnabled,
+                  onChanged: (value) {
+                    setState(() {
+                      _autoSwapEnabled = value ?? false;
+                    });
+                    widget.onAutoSwapChanged(_autoSwapEnabled);
+                  },
+                ),
+                Expanded(
+                  child: Text(
+                    '게임 종료 시 자동 위치 교체',
+                    style: TextStyle(color: scheme.onSurface),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -2768,6 +2875,270 @@ class _StopwatchDisplay extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _GuideDialog extends StatelessWidget {
+  final ColorScheme scheme;
+
+  const _GuideDialog({required this.scheme});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return const SizedBox.shrink();
+    return Dialog(
+      backgroundColor: const Color(0xFF0B1220),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 헤더
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Icon(Icons.help_outline, color: scheme.primary, size: 28),
+                  const SizedBox(width: 12),
+                  Text(
+                    l10n.guideTitle,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(
+                      Icons.close,
+                      color: scheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // 내용
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 앱 사용법 섹션
+                    _GuideSection(
+                      title: l10n.guideAppSection,
+                      scheme: scheme,
+                      items: [
+                        _GuideItem(
+                          icon: Icons.touch_app,
+                          title: l10n.guideAppScoreIncrement,
+                          description: l10n.guideAppScoreIncrementDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.undo,
+                          title: l10n.guideAppUndo,
+                          description: l10n.guideAppUndoDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.restart_alt,
+                          title: l10n.guideAppReset,
+                          description: l10n.guideAppResetDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.swipe_right,
+                          title: l10n.guideAppSetHistory,
+                          description: l10n.guideAppSetHistoryDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.videocam,
+                          title: l10n.guideAppVideoRecording,
+                          description: l10n.guideAppVideoRecordingDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.timer,
+                          title: l10n.guideAppStopwatch,
+                          description: l10n.guideAppStopwatchDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.settings,
+                          title: l10n.guideAppSettings,
+                          description: l10n.guideAppSettingsDesc,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    // 워치 사용법 섹션
+                    _GuideSection(
+                      title: l10n.guideWatchSection,
+                      scheme: scheme,
+                      items: [
+                        _GuideItem(
+                          icon: Icons.touch_app,
+                          title: l10n.guideWatchScoreIncrement,
+                          description: l10n.guideWatchScoreIncrementDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.undo,
+                          title: l10n.guideWatchUndo,
+                          description: l10n.guideWatchUndoDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.restart_alt,
+                          title: l10n.guideWatchReset,
+                          description: l10n.guideWatchResetDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.mic,
+                          title: l10n.guideWatchVoice,
+                          description: l10n.guideWatchVoiceDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.screen_lock_portrait,
+                          title: l10n.guideWatchAlwaysOn,
+                          description: l10n.guideWatchAlwaysOnDesc,
+                        ),
+                        _GuideItem(
+                          icon: Icons.sync,
+                          title: l10n.guideWatchSync,
+                          description: l10n.guideWatchSyncDesc,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // 닫기 버튼
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: scheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    l10n.ok,
+                    style: TextStyle(
+                      color: scheme.onPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideSection extends StatelessWidget {
+  final String title;
+  final List<_GuideItem> items;
+  final ColorScheme scheme;
+
+  const _GuideSection({
+    required this.title,
+    required this.items,
+    required this.scheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: scheme.primary,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _GuideItemWidget(item: item, scheme: scheme),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GuideItem {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _GuideItem({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+}
+
+class _GuideItemWidget extends StatelessWidget {
+  final _GuideItem item;
+  final ColorScheme scheme;
+
+  const _GuideItemWidget({required this.item, required this.scheme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(item.icon, color: scheme.primary, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.title,
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.description,
+                style: TextStyle(
+                  color: scheme.onSurface.withValues(alpha: 0.7),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
