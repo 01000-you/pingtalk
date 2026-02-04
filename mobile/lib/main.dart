@@ -1628,7 +1628,7 @@ class _SwipeGuideOverlay extends StatelessWidget {
                   final l10n = AppLocalizations.of(context);
                   if (l10n == null) return const SizedBox.shrink();
                   return Text(
-                    '우측으로 스와이프하면\n세트 히스토리를 볼 수 있습니다',
+                    l10n.swipeGuideMessage,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: scheme.onSurface,

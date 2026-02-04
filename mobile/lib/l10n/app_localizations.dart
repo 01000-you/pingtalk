@@ -80,6 +80,12 @@ class AppLocalizations {
   // 스플래시
   String get splashTagline => _getText('스코어 관리의 새로운 기준', 'The New Standard for Score Management', '分数管理的新标准', 'スコア管理の新しい基準');
   
+  // 스와이프 가이드
+  String get swipeGuideMessage => _getText('우측으로 스와이프하면\n세트 히스토리를 볼 수 있습니다',
+    'Swipe right to view\nset history',
+    '向右滑动可查看\n局分历史',
+    '右にスワイプすると\nセット履歴を確認できます');
+  
   // 일반 버튼
   String get ok => _getText('확인', 'OK', '确定', '了解');
   
