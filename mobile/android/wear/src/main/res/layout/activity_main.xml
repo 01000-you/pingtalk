@@ -1,160 +1,175 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.wear.widget.BoxInsetLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:clipToPadding="false"
-    android:paddingTop="0dp">
+    android:padding="8dp">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingLeft="8dp"
-        android:paddingRight="8dp"
-        android:paddingBottom="8dp"
-        android:paddingTop="0dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:clipToPadding="false"
+        android:paddingTop="0dp"
+        android:scrollbars="vertical"
+        android:scrollbarThumbVertical="@drawable/scrollbar_thumb_vertical"
+        android:scrollbarSize="4dp"
+        android:fadeScrollbars="false"
+        android:scrollbarStyle="outsideOverlay">
 
-        <TextView
-            android:id="@+id/tvTitle"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="PINGBOARD"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:gravity="center"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:background="#1A1A1A"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="폰: 연결 대기"
-            android:textSize="11sp"
-            android:textColor="#FFFFFF"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp"
+            android:orientation="vertical"
             android:paddingLeft="8dp"
             android:paddingRight="8dp"
-            android:background="#1A1A1A"
-            android:layout_marginTop="0dp"
-            android:layout_marginBottom="4dp" />
+            android:paddingBottom="36dp"
+            android:paddingTop="0dp">
 
-        <TextView
-            android:id="@+id/tvScore"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="0 : 0"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:background="#1A1A1A"
-            android:layout_marginBottom="1dp" />
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PINGBOARD"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:layout_gravity="center_horizontal"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:layout_marginBottom="8dp" />
 
-        <LinearLayout
-            android:id="@+id/layoutHomeAway"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:layout_marginBottom="1dp">
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="폰: 연결 대기"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:background="#1A1A1A"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvScore"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="0 : 0"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:background="#1A1A1A"
+                android:layout_marginBottom="4dp" />
+
+            <LinearLayout
+                android:id="@+id/layoutHomeAway"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+
+                <Button
+                    android:id="@+id/btnHome"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="HOME"
+                    android:textSize="12sp"
+                    android:minHeight="72dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="0dp" />
+
+                <Button
+                    android:id="@+id/btnAway"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="AWAY"
+                    android:textSize="12sp"
+                    android:minHeight="72dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="0dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="0dp">
+
+                <Button
+                    android:id="@+id/btnReset"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="RESET"
+                    android:textSize="14sp"
+                    android:minHeight="40dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="0dp" />
+
+                <Button
+                    android:id="@+id/btnUndo"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="UNDO"
+                    android:textSize="14sp"
+                    android:minHeight="40dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="0dp" />
+            </LinearLayout>
 
             <Button
-                android:id="@+id/btnHome"
-                android:layout_width="0dp"
+                android:id="@+id/btnVoice"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="HOME"
-                android:textSize="12sp"
-                android:minHeight="72dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:paddingLeft="0dp"
-                android:paddingRight="0dp" />
-
-            <Button
-                android:id="@+id/btnAway"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="AWAY"
-                android:textSize="12sp"
-                android:minHeight="72dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:paddingLeft="0dp"
-                android:paddingRight="0dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="0dp">
-            
-            <Button
-                android:id="@+id/btnReset"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="4dp"
-                android:text="RESET"
+                android:text="VOICE"
                 android:textSize="14sp"
                 android:minHeight="40dp"
+                android:layout_marginTop="0dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp"
                 android:paddingLeft="0dp"
                 android:paddingRight="0dp" />
-            
+
             <Button
-                android:id="@+id/btnUndo"
-                android:layout_width="0dp"
+                android:id="@+id/btnAlwaysOn"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="4dp"
-                android:text="UNDO"
-                android:textSize="14sp"
-                android:minHeight="40dp"
+                android:text="ALWAYS ON"
+                android:textSize="12sp"
+                android:minHeight="36dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="10dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp"
                 android:paddingLeft="0dp"
                 android:paddingRight="0dp" />
+
         </LinearLayout>
 
-        <Button
-            android:id="@+id/btnVoice"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="VOICE"
-            android:textSize="14sp"
-            android:minHeight="40dp"
-            android:layout_marginTop="0dp"
-            android:paddingTop="0dp"
-            android:paddingBottom="0dp"
-            android:paddingLeft="0dp"
-            android:paddingRight="0dp" />
+    </ScrollView>
 
-        <Button
-            android:id="@+id/btnAlwaysOn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="ALWAYS ON"
-            android:textSize="12sp"
-            android:minHeight="36dp"
-            android:layout_marginTop="2dp"
-            android:paddingTop="0dp"
-            android:paddingBottom="0dp"
-            android:paddingLeft="0dp"
-            android:paddingRight="0dp" />
-
-    </LinearLayout>
-
-</ScrollView>
+</androidx.wear.widget.BoxInsetLayout>
 

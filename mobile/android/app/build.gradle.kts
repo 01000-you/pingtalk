@@ -61,13 +61,8 @@ android {
                 // key.properties가 없으면 debug 키 사용 (개발용)
                 signingConfig = signingConfigs.getByName("debug")
             }
-            // R8 활성화: 앱 크기 감소 및 코드 난독화
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

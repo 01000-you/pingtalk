@@ -1221,67 +1221,44 @@ class MainActivity : AppCompatActivity(), MessageClient.OnMessageReceivedListene
     private fun showResetConfirmDialog() {
         val (title, message, confirmText) = getResetDialogTexts()
         val cancelText = "Cancel"
-        
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_reset, null)
+
+        val tvTitle = dialogView.findViewById<TextView>(R.id.tvDialogTitle)
+        val tvMessage = dialogView.findViewById<TextView>(R.id.tvDialogMessage)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnDialogCancel)
+        val btnConfirm = dialogView.findViewById<Button>(R.id.btnDialogConfirm)
+
+        tvTitle.text = title
+        tvMessage.text = message
+        btnCancel.text = cancelText
+        btnConfirm.text = confirmText
+
         val dialog = AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setPositiveButton(confirmText) { _, _ ->
-                sendCommand("reset", null)
-            }
-            .setNegativeButton(cancelText, null)
+            .setView(dialogView)
             .create()
-        
+
         dialog.setOnShowListener {
-            // 다이얼로그 배경을 어두운 색으로
             val bgColor = Color.rgb(11, 18, 32) // 0xFF0B1220
             dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bgColor))
-            
-            // 제목 TextView 찾기 - 재귀적으로 모든 TextView 검색
-            fun findTitleView(view: android.view.View?): TextView? {
-                if (view == null) return null
-                if (view is TextView && view.text == "Reset") {
-                    return view
-                }
-                if (view is android.view.ViewGroup) {
-                    for (i in 0 until view.childCount) {
-                        val found = findTitleView(view.getChildAt(i))
-                        if (found != null) return found
-                    }
-                }
-                return null
-            }
-            
-            val titleView = dialog.findViewById<TextView>(android.R.id.title) 
-                ?: findTitleView(dialog.window?.decorView)
-            
-            titleView?.let {
-                it.setTextColor(Color.WHITE)
-                it.gravity = android.view.Gravity.CENTER
-                it.setTypeface(null, android.graphics.Typeface.BOLD)
-                it.textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
-                // 부모 레이아웃의 중앙정렬도 설정 (LinearLayout인 경우)
-                val parent = it.parent as? LinearLayout
-                parent?.gravity = android.view.Gravity.CENTER
-            }
-            
-            // 메시지 텍스트 색상 및 중앙정렬
-            val messageView = dialog.findViewById<TextView>(android.R.id.message)
-            if (messageView != null) {
-                messageView.setTextColor(Color.argb(230, 255, 255, 255))
-                messageView.gravity = android.view.Gravity.CENTER
-                messageView.textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
-            }
-            
-            // 버튼 색상 설정
-            val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-            positiveButton?.setBackgroundColor(Color.rgb(220, 80, 80)) // 빨간색
-            positiveButton?.setTextColor(Color.WHITE)
-            
-            val negativeButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
-            negativeButton?.setBackgroundColor(Color.argb(80, 150, 150, 150)) // 회색
-            negativeButton?.setTextColor(Color.argb(180, 255, 255, 255))
+
+            // 버튼 색상 (기존 스타일 최대한 유지)
+            btnConfirm.setBackgroundColor(Color.rgb(220, 80, 80)) // 빨간색
+            btnConfirm.setTextColor(Color.WHITE)
+
+            btnCancel.setBackgroundColor(Color.argb(80, 150, 150, 150)) // 회색
+            btnCancel.setTextColor(Color.argb(180, 255, 255, 255))
         }
-        
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnConfirm.setOnClickListener {
+            sendCommand("reset", null)
+            dialog.dismiss()
+        }
+
         dialog.show()
     }
 

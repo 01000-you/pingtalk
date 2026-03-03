@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'l10n/app_localizations.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -192,7 +191,10 @@ class SplashScreen extends StatelessWidget {
                               gradient: LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [Colors.white, Colors.grey.shade200],
+                                colors: [
+                                  Colors.white,
+                                  Colors.grey.shade200,
+                                ],
                               ),
                             ),
                           ),
@@ -221,28 +223,13 @@ class SplashScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   // Tagline
-                  Builder(
-                    builder: (context) {
-                      final l10n = AppLocalizations.of(context);
-                      if (l10n == null) {
-                        return const Text(
-                          '스코어 관리의 새로운 기준',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                            letterSpacing: 0.7,
-                          ),
-                        );
-                      }
-                      return Text(
-                        l10n.splashTagline,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                          letterSpacing: 0.7,
-                        ),
-                      );
-                    },
+                  const Text(
+                    '스코어 관리의 새로운 기준',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                      letterSpacing: 0.7,
+                    ),
                   ),
                   const SizedBox(height: 120),
                   // Loading indicator
@@ -288,10 +275,9 @@ class _LoadingDotState extends State<_LoadingDot>
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    _animation = Tween<double>(
-      begin: 0,
-      end: -10,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _animation = Tween<double>(begin: 0, end: -10).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
 
     Future.delayed(Duration(milliseconds: widget.delay), () {
       if (mounted) {
@@ -326,3 +312,4 @@ class _LoadingDotState extends State<_LoadingDot>
     );
   }
 }
+

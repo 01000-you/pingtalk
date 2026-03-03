@@ -27,8 +27,9 @@ android {
         // 버전 코드 충돌을 방지하기 위해 오프셋(1000) 추가
         // 모바일: 1, 2, 3... → Wear OS: 1001, 1002, 1003...
         // versionName은 모바일과 동일하게 유지 (사용자에게 보이는 버전)
-        versionCode = 1002  // 모바일 versionCode(2) + 1000
-        versionName = "1.0.1"
+        // 현재 워치에 설치된 버전 코드(1006)보다 큰 값으로 설정 (예: 1007)
+        versionCode = 1007  // 모바일 versionCode(7) + 1000 가정
+        versionName = "1.0.7"
     }
 
     signingConfigs {
@@ -52,9 +53,7 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            // R8 활성화: 앱 크기 감소 및 코드 난독화
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -75,6 +74,9 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // Wear OS UI 위젯 (BoxInsetLayout 등)
+    implementation("androidx.wear:wear:1.3.0")
 
     // Wear OS / Data Layer
     implementation("com.google.android.gms:play-services-wearable:18.2.0")
